@@ -118,10 +118,16 @@ export function Mock(mockedClazzOrName) {
     }
     if (singletons.has(mockedClazzOrName)) {
       const instanceContext = singletons.get(mockedClazzOrName)
+      if (instanceContext.original) {
+        throw new Error('Mock already defined, reset before mocking again')
+      }
       instanceContext.original = instanceContext.clazz
       instanceContext.clazz = clazz
     } else if (factories.has(mockedClazzOrName)) {
       const instanceContext = factories.get(mockedClazzOrName)
+      if (instanceContext.original) {
+        throw new Error('Mock already defined, reset before mocking again')
+      }
       instanceContext.original = instanceContext.clazz
       instanceContext.clazz = clazz
     } else {

@@ -5,7 +5,7 @@
 
 ## Description
 
-With TC39 reaching stage 3 on the decorators proposal, it's time to start thinking about how we can use them in our projects. One of the most common patterns in JavaScript is dependency injection. This pattern is used to make our code more testable and maintainable. This library provides simple decorators to help you inject dependencies into your classes and mock them for testing.
+With [TC39](https://github.com/tc39/proposal-decorators) reaching stage 3 on the decorators proposal, it's time to start thinking about how we can use them in our projects. One of the most common patterns in JavaScript is dependency injection. This pattern is used to make our code more testable and maintainable. This library provides simple decorators to help you inject dependencies into your classes and mock them for testing.
 
 ## Installation
 

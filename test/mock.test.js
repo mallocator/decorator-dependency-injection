@@ -12,6 +12,10 @@ describe('Mocking', () => {
     @Inject(ToBeMockedSingleton) toBeMockedSingleton
   }
 
+  afterEach(() => {
+    resetMocks()
+  })
+
   it('should inject a mock singleton', () => {
     @Mock(ToBeMockedSingleton)
     class MockedSingleton {
@@ -53,5 +57,15 @@ describe('Mocking', () => {
     resetMocks()
     const result2 = new TestInjectionFactory()
     expect(result2.toBeMockedFactory.op()).toBe('original')
+  })
+
+  it('should throw an error if a mock is not a singleton or factory', () => {
+    expect(() => {
+      @Mock(ToBeMockedFactory)
+      class Mocked1 {}
+
+      @Mock(ToBeMockedFactory)
+      class Mocked2 {}
+    }).toThrow('Mock already defined, reset before mocking again')
   })
 })
