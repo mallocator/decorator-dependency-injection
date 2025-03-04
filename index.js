@@ -1,14 +1,15 @@
 /**
  * @typedef {Object} InstanceContext
+ * @property {string} type The type of the instance, either 'singleton' or 'factory'
  * @property {Class} clazz The class of the instance
+ * @property {Class} [originalClazz] The original class if it is a mock
  * @property {Object} [instance] The instance if it is a singleton
- * @property {Class} [original] The original class if it is a mock
+ * @property {Object} [originalInstance] The original instance if it is a mock
+ * @property {boolean} [proxy=false] If true, the mock if the injection instance will be a proxy to the original class
  */
 
 /** @type {Map<string|Class, InstanceContext>} */
-const singletons = new Map()
-/** @type {Map<string|Class, InstanceContext>} */
-const factories = new Map()
+const instances = new Map()
 
 /**
  * Register a class as a singleton. If a name is provided, it will be used as the key in the singleton map.
@@ -27,13 +28,10 @@ export function Singleton(name) {
     if (context.kind !== "class") {
       throw new Error('Invalid injection target')
     }
-    if (singletons.has(name ?? clazz)) {
-      throw new Error('Singleton already defined')
+    if (instances.has(name ?? clazz)) {
+      throw new Error('Instance with that name or class already instantiated')
     }
-    if (factories.has(name ?? clazz)) {
-      throw new Error('Factory with the same name already defined')
-    }
-    singletons.set(name ?? clazz, { clazz })
+    instances.set(name ?? clazz, { clazz, type: 'singleton' })
   }
 }
 
@@ -54,13 +52,10 @@ export function Factory(name) {
     if (context.kind !== "class") {
       throw new Error('Invalid injection target')
     }
-    if (factories.has(name ?? clazz)) {
-      throw new Error('Factory already defined')
+    if (instances.has(name ?? clazz)) {
+      throw new Error('Instance with that name or class already instantiated')
     }
-    if (singletons.has(name ?? clazz)) {
-      throw new Error('Singleton with the same name already defined')
-    }
-    factories.set(name ?? clazz, { clazz })
+    instances.set(name ?? clazz, { clazz, type: 'factory' })
   }
 }
 
@@ -69,7 +64,7 @@ export function Factory(name) {
  * If the instance is a singleton, it will only be created once with the first set of parameters it encounters.
  *
  * @param {string|Class} clazzOrName The singleton or factory class or name
- * @param {*} params Parameters to pass to the constructor
+ * @param {*} params Parameters to pass to the constructor. Recommended to use only with factories.
  * @return {(function(*): void)|*}
  * @example @Inject(MySingleton) mySingleton
  * @example @Inject("myCustomName") myFactory
@@ -83,18 +78,32 @@ export function Inject(clazzOrName, ...params) {
         if (initialValue) {
           throw new Error('Cannot assign value to injected field')
         }
-        if (singletons.has(clazzOrName)) {
-          const instanceContext = singletons.get(clazzOrName)
-          if (!instanceContext.instance) {
-            singletons.set(clazzOrName, {clazz: clazzOrName, instance: new instanceContext.clazz(...params), original: instanceContext.original})
-          }
-          return singletons.get(clazzOrName).instance
-        } else if (factories.has(clazzOrName)) {
-          const factoryClass = factories.get(clazzOrName).clazz
-          return new factoryClass(...params)
-        } else {
-          throw new Error('Cannot find injection source with the provided name')
+        const instanceContext = getContext(clazzOrName)
+
+        if (instanceContext.instance) {
+          return instanceContext.instance
         }
+
+        const instance = new instanceContext.clazz(...params)
+
+        if (instanceContext.type === 'singleton') {
+          if (instanceContext.originalClazz && instanceContext.proxy) {
+            instanceContext.instance = getProxy(instance, new instanceContext.originalClazz(...params))
+          } else {
+            instanceContext.instance = instance
+          }
+          return instanceContext.instance
+        }
+
+        if (instanceContext.type === 'factory') {
+          if (instanceContext.originalClazz && instanceContext.proxy) {
+            return getProxy(instance, new instanceContext.originalClazz(...params))
+          } else {
+            return instance
+          }
+        }
+
+        throw new Error('Unexpected injection type')
       }
     } else {
       throw new Error('Invalid injection target')
@@ -102,37 +111,47 @@ export function Inject(clazzOrName, ...params) {
   }
 }
 
+function getProxy(mock, original) {
+  return new Proxy(mock, {
+    get(target, prop, receiver) {
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver)
+      }
+      return Reflect.get(original, prop, receiver)
+    }
+  })
+}
+
 /**
  * Mark a class as a mock. This will replace the class with a mock instance when injected.
  * @param {string|Class} mockedClazzOrName The singleton or factory class or name to be mocked
+ * @param {boolean} [proxy=false] If true, the mock will be a proxy to the original class. Any methods not defined in the mock will be called on the original class.
  * @return {(function(*, *): void)|*}
  * @example @Mock(MySingleton) class MyMock {}
  * @example @Mock("myCustomName") class MyMock {}
  * @throws {Error} If the injection target is not a class
  * @throws {Error} If the injection source is not found
  */
-export function Mock(mockedClazzOrName) {
+export function Mock(mockedClazzOrName, proxy = false) {
   return function(clazz, context) {
     if (context.kind !== "class") {
       throw new Error('Invalid injection target')
     }
-    if (singletons.has(mockedClazzOrName)) {
-      const instanceContext = singletons.get(mockedClazzOrName)
-      if (instanceContext.original) {
+    const instanceContext = getContext(mockedClazzOrName)
+    if (instanceContext.originalClazz) {
         throw new Error('Mock already defined, reset before mocking again')
-      }
-      instanceContext.original = instanceContext.clazz
-      instanceContext.clazz = clazz
-    } else if (factories.has(mockedClazzOrName)) {
-      const instanceContext = factories.get(mockedClazzOrName)
-      if (instanceContext.original) {
-        throw new Error('Mock already defined, reset before mocking again')
-      }
-      instanceContext.original = instanceContext.clazz
-      instanceContext.clazz = clazz
-    } else {
-      throw new Error('Cannot find injection source with the provided name')
     }
+    instanceContext.originalClazz = instanceContext.clazz
+    instanceContext.proxy = proxy
+    instanceContext.clazz = clazz
+  }
+}
+
+function getContext(mockedClazzOrName) {
+  if (instances.has(mockedClazzOrName)) {
+    return instances.get(mockedClazzOrName)
+  } else {
+    throw new Error('Cannot find injection source with the provided name')
   }
 }
 
@@ -140,10 +159,7 @@ export function Mock(mockedClazzOrName) {
  * Reset all mocks to their original classes.
  */
 export function resetMocks() {
-  for (const instanceContext of singletons.values()) {
-    reset(instanceContext)
-  }
-  for (const instanceContext of factories.values()) {
+  for (const instanceContext of instances.values()) {
     reset(instanceContext)
   }
 }
@@ -153,8 +169,7 @@ export function resetMocks() {
  * @param {string|Class} clazzOrName The singleton or factory class or name to reset
  */
 export function resetMock(clazzOrName) {
-  const instanceContext = singletons.get(clazzOrName) ?? factories.get(clazzOrName)
-  reset(instanceContext)
+  reset(getContext(clazzOrName))
 }
 
 /**
@@ -166,9 +181,10 @@ function reset(instanceContext) {
   if (!instanceContext) {
     throw new Error('Cannot find injection source with the provided name')
   }
-  if (instanceContext.original) {
-    instanceContext.clazz = instanceContext.original
-    delete instanceContext.original
-    delete instanceContext.instance
+  if (instanceContext.originalClazz) {
+    instanceContext.clazz = instanceContext.originalClazz
+    instanceContext.instance = instanceContext.originalInstance
+    delete instanceContext.originalClazz
+    delete instanceContext.originalInstance
   }
 }

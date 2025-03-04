@@ -88,8 +88,8 @@ import { Factory, Inject } from 'decorator-dependency-injection';
 @Factory
 class Dependency {
   constructor(param1, param2) {
-    this.param1 = param1;
-    this.param2 = param2;
+    this.param1 = param1
+    this.param2 = param2
   }
 }
 
@@ -105,33 +105,77 @@ While this is most useful for Factory dependencies, it can also be used with Sin
 You can mock dependencies by using the ```@Mock``` decorator with a function that returns the mock dependency.
 
 ```javascript
-import { Factory, Inject, Mock } from 'decorator-dependency-injection';
+import { Factory, Inject, Mock } from 'decorator-dependency-injection'
 
 @Factory
 class Dependency {
   method() {
-    return 'real';
+    return 'real'
   }
 }
 
 class Consumer {
   @Inject(Dependency) dependency
 
-  test() {
-    return this.dependency.method();
+  constructor() {
+    console.log(this.dependency.method())
   }
 }
 
-@Mock
+// Test Code
+
+@Mock(Dependency)
 class MockDependency {
   method() {
-    return 'mock';
+    return 'mock'
   }
 }
 
-const consumer = new Consumer();
+const consumer = new Consumer()  // prints 'mock'
 
-consumer.test(); // returns 'real'
+resetMock(Dependency)
+
+const consumer = new Consumer()  // prints 'real'
+```
+
+You can also use the ```@Mock``` decorator as a proxy instead of a full mock. Any method calls not implemented in the mock will be passed to the real dependency.
+
+```javascript
+import { Factory, Inject, Mock } from 'decorator-dependency-injection'
+
+@Factory
+class Dependency {
+  method() {
+    return 'real'
+  }
+
+  otherMethod() {
+    return 'other'
+  }
+}
+
+class Consumer {
+  @Inject(Dependency) dependency
+
+  constructor() {
+    console.log(this.dependency.method(), this.dependency.otherMethod())
+  }
+}
+
+// Test Code
+
+@Mock(Dependency, true)
+class MockDependency {
+  method() {
+    return 'mock'
+  }
+}
+
+const consumer = new Consumer()  // prints 'mock other'
+
+resetMock(Dependency)
+
+const consumer = new Consumer()  // prints 'real other'
 ```
 
 For more examples, see the tests in the ```test``` directory.
@@ -143,3 +187,9 @@ To run the tests, run the following command in the project root.
 ```bash
 npm test
 ```
+
+## Version History
+
+- 1.0.0 - Initial release
+- 1.0.1 - Automated release with GitHub Actions
+- 1.0.2 - Added proxy option to @Mock decorator

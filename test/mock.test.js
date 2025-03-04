@@ -6,6 +6,10 @@ describe('Mocking', () => {
     op() {
       return 'original'
     }
+
+    op2() {
+      return 'original2'
+    }
   }
 
   class TestInjection {
@@ -26,10 +30,12 @@ describe('Mocking', () => {
 
     const result = new TestInjection()
     expect(result.toBeMockedSingleton.op()).toBe('mocked')
+    expect(result.toBeMockedSingleton.op2).toBe.undefined
 
     resetMocks()
     const result2 = new TestInjection()
     expect(result2.toBeMockedSingleton.op()).toBe('original')
+    expect(result2.toBeMockedSingleton.op2()).toBe('original2')
   })
 
   @Factory()
