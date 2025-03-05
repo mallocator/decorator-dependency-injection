@@ -1,6 +1,6 @@
 # Decorator Dependency Injection
 [![npm version](https://badge.fury.io/js/decorator-dependency-injection.svg)](http://badge.fury.io/js/decorator-dependency-injection)
-[![Build Status](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/node.js.yml/badge.svg)](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/node.js.yml)
+[![Build Status](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/release.yml/badge.svg)](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/release.yml)
 
 
 ## Description
