@@ -38,6 +38,73 @@ describe('Proxy Mocking', () => {
     expect(result2.toBeProxiedSingleton.op2()).toBe('original2')
   })
 
+  it('should support setting properties via proxy', () => {
+    @Singleton()
+    class WithProps {
+      value = 'original'
+    }
+
+    @Mock(WithProps, true)
+    class MockWithProps {
+      mockValue = 'mock'
+    }
+
+    class TestSetProxy {
+      @Inject(WithProps) dep
+    }
+
+    const t = new TestSetProxy()
+    // Set on mock property
+    t.dep.mockValue = 'updated mock'
+    expect(t.dep.mockValue).toBe('updated mock')
+
+    // Set on original property (falls through)
+    t.dep.value = 'updated original'
+    expect(t.dep.value).toBe('updated original')
+  })
+
+  it('should support "in" operator via proxy', () => {
+    @Singleton()
+    class Original {
+      originalMethod() {}
+    }
+
+    @Mock(Original, true)
+    class PartialMock {
+      mockMethod() {}
+    }
+
+    class TestHasProxy {
+      @Inject(Original) dep
+    }
+
+    const t = new TestHasProxy()
+    expect('mockMethod' in t.dep).toBe(true)
+    expect('originalMethod' in t.dep).toBe(true)
+    expect('nonexistent' in t.dep).toBe(false)
+  })
+
+  it('should combine keys from mock and original via Object.keys', () => {
+    @Singleton()
+    class Original {
+      originalProp = 1
+    }
+
+    @Mock(Original, true)
+    class PartialMock {
+      mockProp = 2
+    }
+
+    class TestKeysProxy {
+      @Inject(Original) dep
+    }
+
+    const t = new TestKeysProxy()
+    const keys = Object.keys(t.dep)
+    expect(keys).toContain('mockProp')
+    expect(keys).toContain('originalProp')
+  })
+
   @Factory()
   class ToBeProxiedFactory {
     op() {

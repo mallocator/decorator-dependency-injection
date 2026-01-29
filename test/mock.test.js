@@ -30,7 +30,7 @@ describe('Mocking', () => {
 
     const result = new TestInjection()
     expect(result.toBeMockedSingleton.op()).toBe('mocked1')
-    expect(result.toBeMockedSingleton.op2).toBe.undefined
+    expect(result.toBeMockedSingleton.op2).toBeUndefined()
 
     resetMocks()
     const result2 = new TestInjection()
@@ -54,7 +54,7 @@ describe('Mocking', () => {
     const instance = new TestInjectionLazy()
     const result = instance.lazyMockedSingleton
     expect(result.op()).toBe('mocked2')
-    expect(result.op2).toBe.undefined
+    expect(result.op2).toBeUndefined()
 
     resetMocks()
     const instance2 = new TestInjectionLazy()
@@ -290,6 +290,15 @@ describe('Mocking', () => {
 
     const t = new Test()
     expect(t.dep).toBeInstanceOf(Sub)
+  })
+
+  it('should throw if Mock is not applied to a class', () => {
+    @Singleton()
+    class _S {}
+
+    expect(() => {
+      Mock(_S)({}, { kind: 'field' })
+    }).toThrow('Invalid injection target')
   })
 })
 

@@ -1,0 +1,30 @@
+# Files to exclude from npm package
+
+# IDE and editor configs
+.idea/
+.vscode/
+.history/
+*.iml
+
+# Git and GitHub
+.git/
+.github/
+.gitignore
+
+# Test files
+test/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Build configs
+babel.config.json
+tsconfig.json
+jest.config.js
+
+# Development files
+*.log
+.DS_Store
+coverage/
+.nyc_output/

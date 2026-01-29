@@ -45,6 +45,17 @@ describe('Lazy Injection via fields', () => {
     resetMocks()
   })
 
+  it('should throw when attempting to assign to lazy-injected field', () => {
+    class TestLazySetterError {
+      @InjectLazy(TestLazySingleton) lazyProp
+    }
+
+    const instance = new TestLazySetterError()
+    expect(() => {
+      instance.lazyProp = 'something'
+    }).toThrow('Cannot assign value to lazy-injected field "lazyProp"')
+  })
+
   it('should lazily inject factory with caching on first access per field', () => {
     class TestLazyFactoryInjection {
       @InjectLazy(TestLazyFactory) testFactory

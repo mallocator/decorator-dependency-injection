@@ -2,6 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/decorator-dependency-injection.svg)](http://badge.fury.io/js/decorator-dependency-injection)
 [![Build Status](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/release.yml/badge.svg)](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/release.yml)
+[![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)](https://github.com/mallocator/decorator-dependency-injection)
 
 ## Description
 
@@ -61,9 +62,9 @@ The ```@Singleton``` decorator is used to inject a single instance of a dependen
 want to share the same instance of a class across multiple classes.
 
 ```javascript
-import {Singleton} from 'decorator-dependency-injection';
+import {Singleton, Inject} from 'decorator-dependency-injection';
 
-@Singleton
+@Singleton()
 class Dependency {
 }
 
@@ -78,9 +79,9 @@ The ```@Factory``` decorator is used to inject a new instance of a dependency in
 This is useful when you want to create a new instance of a class each time it is injected.
 
 ```javascript
-import {Factory} from 'decorator-dependency-injection';
+import {Factory, Inject} from 'decorator-dependency-injection';
 
-@Factory
+@Factory()
 class Dependency {
 }
 
@@ -89,23 +90,23 @@ class Consumer {
 }
 ```
 
-### LazyInject
+### InjectLazy
 
 ```@Inject``` annotated properties are evaluated during instance initialization. That means that all properties should
 be accessible in the constructor. That also means that we're creating an instance no matter if you access the property
-or not. If you want to only create an instance when you access the property, you can use the ```@LazyInject```
+or not. If you want to only create an instance when you access the property, you can use the ```@InjectLazy```
 decorator. This will create the instance only when the property is accessed for the first time. Note that this also
-works from the constructor, same as the regular ```@Inject```.
+works from the constructor, same as the regular ```@Inject```.  
 
 ```javascript
-import {LazyInject} from 'decorator-dependency-injection';
+import {Singleton, InjectLazy} from 'decorator-dependency-injection';
 
-@Singleton
+@Singleton()
 class Dependency {
 }
 
 class Consumer {
-  @LazyInject(Dependency) dependency // creates an instance only when the property is accessed
+  @InjectLazy(Dependency) dependency // creates an instance only when the property is accessed
 }
 ```
 
@@ -138,9 +139,9 @@ will only be passed to the dependency the first time it is created.
 You can mock dependencies by using the ```@Mock``` decorator with a function that returns the mock dependency.
 
 ```javascript
-import {Factory, Inject, Mock} from 'decorator-dependency-injection'
+import {Factory, Inject, Mock, resetMock} from 'decorator-dependency-injection'
 
-@Factory
+@Factory()
 class Dependency {
   method() {
     return 'real'
@@ -177,18 +178,29 @@ The `resetMock` utility function allows you to remove any active mock for a depe
 implementation. This is useful for cleaning up after tests or switching between real and mock dependencies.
 
 ```javascript
-import {resetMock} from 'decorator-dependency-injection';
+import {resetMock, resetMocks} from 'decorator-dependency-injection';
 
 resetMock(Dependency); // Restores the original Dependency implementation
+resetMocks(); // Restores all mocked dependencies
+```
+
+### Clearing the Container
+
+For complete test isolation, you can clear all registered instances from the container:
+
+```javascript
+import {clearContainer} from 'decorator-dependency-injection';
+
+clearContainer(); // Removes all registered singletons, factories, and mocks
 ```
 
 You can also use the ```@Mock``` decorator as a proxy instead of a full mock. Any method calls not implemented in the
 mock will be passed to the real dependency.
 
 ```javascript
-import {Factory, Inject, Mock} from 'decorator-dependency-injection'
+import {Factory, Inject, Mock, resetMock} from 'decorator-dependency-injection'
 
-@Factory
+@Factory()
 class Dependency {
   method() {
     return 'real'
@@ -225,6 +237,45 @@ const consumer = new Consumer()  // prints 'real other'
 
 For more examples, see the tests in the ```test``` directory.
 
+## Advanced Usage
+
+### Using Isolated Containers
+
+For advanced scenarios like parallel test execution or module isolation, you can create separate containers:
+
+```javascript
+import {Container} from 'decorator-dependency-injection';
+
+const container1 = new Container();
+const container2 = new Container();
+
+class MyService {}
+
+// Register the same class in different containers
+container1.registerSingleton(MyService);
+container2.registerSingleton(MyService);
+
+// Each container maintains its own singleton instance
+const ctx1 = container1.getContext(MyService);
+const ctx2 = container2.getContext(MyService);
+
+const instance1 = container1.getInstance(ctx1, []);
+const instance2 = container2.getInstance(ctx2, []);
+
+console.log(instance1 === instance2); // false - different containers
+```
+
+### Accessing the Default Container
+
+You can access the default global container for programmatic registration:
+
+```javascript
+import {getContainer} from 'decorator-dependency-injection';
+
+const container = getContainer();
+console.log(container.has(MyService)); // Check if a class is registered
+```
+
 ## Running the tests
 
 To run the tests, run the following command in the project root.
@@ -238,4 +289,5 @@ npm test
 - 1.0.0 - Initial release
 - 1.0.1 - Automated release with GitHub Actions
 - 1.0.2 - Added proxy option to @Mock decorator
-- 1.0.3 - Added @LazyInject decorator
+- 1.0.3 - Added @InjectLazy decorator
+- 1.0.4 - Added Container abstraction, clearContainer(), TypeScript definitions, improved proxy support
