@@ -306,4 +306,58 @@ describe('Injection via fields', () => {
     const t = new Test()
     expect(t.dep.params).toEqual([undefined, null, {a: 1}])
   })
+
+  it('should throw if Singleton is not applied to a class', () => {
+    expect(() => {
+      Singleton()({}, { kind: 'field' })
+    }).toThrow('Invalid injection target')
+  })
+
+  it('should throw if Singleton receives a non-function', () => {
+    expect(() => {
+      Singleton()('not a class', { kind: 'class' })
+    }).toThrow('Target must be a class constructor')
+  })
+
+  it('should throw if Singleton receives a plain object', () => {
+    expect(() => {
+      Singleton()({}, { kind: 'class' })
+    }).toThrow('Target must be a class constructor')
+  })
+
+  it('should throw if Factory is not applied to a class', () => {
+    expect(() => {
+      Factory()({}, { kind: 'field' })
+    }).toThrow('Invalid injection target')
+  })
+
+  it('should throw if Factory receives a non-function', () => {
+    expect(() => {
+      Factory()(42, { kind: 'class' })
+    }).toThrow('Target must be a class constructor')
+  })
+
+  it('should throw if Factory receives a plain object', () => {
+    expect(() => {
+      Factory()({}, { kind: 'class' })
+    }).toThrow('Target must be a class constructor')
+  })
+
+  it('should throw if Inject is not applied to a field', () => {
+    expect(() => {
+      @Singleton()
+      class _S {}
+      Inject(_S)(undefined, { kind: 'method', name: 'test' })
+    }).toThrow('Invalid injection target')
+  })
+
+  it('should throw if injected field has an initial value', () => {
+    @Singleton()
+    class _S {}
+
+    expect(() => {
+      const fieldInitializer = Inject(_S)(undefined, { kind: 'field', name: 'test' })
+      fieldInitializer('someValue')
+    }).toThrow('Cannot assign value to injected field')
+  })
 })
