@@ -66,8 +66,12 @@ export default defineConfig([
       }
     },
     rules: {
-      // In tests, decorated classes are used by the decorator system, not directly
-      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
+      // In tests, decorated classes are often "used" by the decorator system (side effects)
+      // rather than being referenced directly. Also allow underscore-prefixed vars.
+      "no-unused-vars": ["warn", { 
+        "argsIgnorePattern": "^_", 
+        "varsIgnorePattern": "^_|Mock|Service|Factory|Singleton|Consumer|Injection|Lazy|^[A-Z]$|^[A-Z][0-9]$"
+      }]
     }
   }
 ]);

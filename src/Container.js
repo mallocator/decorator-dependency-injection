@@ -18,6 +18,29 @@ export class Container {
   /** @type {Map<string|Function, InstanceContext>} */
   #instances = new Map()
 
+  /** @type {boolean} Enable debug logging */
+  #debug = false
+
+  /**
+   * Enable or disable debug logging.
+   * When enabled, logs when instances are created.
+   * @param {boolean} enabled Whether to enable debug mode
+   */
+  setDebug(enabled) {
+    this.#debug = enabled
+  }
+
+  /**
+   * Log a debug message if debug mode is enabled.
+   * @param {string} message The message to log
+   * @private
+   */
+  #log(message) {
+    if (this.#debug) {
+      console.log(`[DI] ${message}`)
+    }
+  }
+
   /**
    * Register a class as a singleton.
    * @param {Function} clazz The class constructor
@@ -52,6 +75,7 @@ export class Container {
       )
     }
     this.#instances.set(key, {clazz, type})
+    this.#log(`Registered ${type}: ${name || clazz.name}`)
   }
 
   /**
@@ -90,11 +114,13 @@ export class Container {
    */
   getInstance(instanceContext, params) {
     if (instanceContext.type === 'singleton' && !instanceContext.originalClazz && instanceContext.instance) {
+      this.#log(`Returning cached singleton: ${instanceContext.clazz.name}`)
       return instanceContext.instance
     }
 
     let instance
     try {
+      this.#log(`Creating ${instanceContext.type}: ${instanceContext.clazz.name}`)
       instance = new instanceContext.clazz(...params)
     } catch (err) {
       if (err instanceof RangeError) {
@@ -132,6 +158,8 @@ export class Container {
     instanceContext.originalClazz = instanceContext.clazz
     instanceContext.proxy = useProxy
     instanceContext.clazz = mockClazz
+    const targetName = typeof targetClazzOrName === 'string' ? targetClazzOrName : targetClazzOrName.name
+    this.#log(`Mocked ${targetName} with ${mockClazz.name}${useProxy ? ' (proxy)' : ''}`)
   }
 
   /**
@@ -140,8 +168,7 @@ export class Container {
    * @throws {Error} If the class or name is not registered
    */
   resetMock(clazzOrName) {
-    const key = typeof clazzOrName === 'string' ? clazzOrName : clazzOrName
-    this.#restoreOriginal(this.#instances.get(key), clazzOrName)
+    this.#restoreOriginal(this.#instances.get(clazzOrName), clazzOrName)
   }
 
   /**

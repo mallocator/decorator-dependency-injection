@@ -110,6 +110,165 @@ class Consumer {
 }
 ```
 
+### Private Field Injection
+
+Both `@Inject` and `@InjectLazy` support private fields using the `#` syntax:
+
+```javascript
+import {Singleton, Inject} from 'decorator-dependency-injection';
+
+@Singleton()
+class Database {
+  query(sql) { /* ... */ }
+}
+
+class UserService {
+  @Inject(Database) #db  // truly private - not accessible from outside
+  
+  getUser(id) {
+    return this.#db.query(`SELECT * FROM users WHERE id = ${id}`)
+  }
+}
+
+const service = new UserService()
+service.#db  // SyntaxError: Private field '#db' must be declared
+```
+
+### The `accessor` Keyword
+
+The `accessor` keyword (part of the TC39 decorators proposal) creates an auto-accessor - a private backing field with 
+automatic getter/setter. This is particularly useful for **lazy injection with private fields**.
+
+```javascript
+class Example {
+  accessor myField = 'value'
+}
+
+// Roughly equivalent to:
+class Example {
+  #myField = 'value'
+  get myField() { return this.#myField }
+  set myField(v) { this.#myField = v }
+}
+```
+
+#### Using `accessor` with Injection
+
+```javascript
+import {Singleton, Inject, InjectLazy} from 'decorator-dependency-injection';
+
+@Singleton()
+class ExpensiveService {
+  constructor() {
+    console.log('ExpensiveService created')
+  }
+}
+
+class Consumer {
+  // Public accessor - works with both @Inject and @InjectLazy
+  @Inject(ExpensiveService) accessor service
+  
+  // Private accessor - recommended for lazy private injection
+  @InjectLazy(ExpensiveService) accessor #privateService
+  
+  doWork() {
+    // Instance created only when first accessed
+    return this.#privateService.process()
+  }
+}
+```
+
+### Injection Support Matrix
+
+| Decorator | Syntax | Lazy? | Notes |
+|-----------|--------|-------|-------|
+| `@Inject` | `@Inject(Dep) field` | No | Standard injection |
+| `@Inject` | `@Inject(Dep) #field` | No | Private field injection |
+| `@Inject` | `@Inject(Dep) accessor field` | No* | Accessor injection |
+| `@Inject` | `@Inject(Dep) accessor #field` | No* | Private accessor injection |
+| `@Inject` | `@Inject(Dep) static field` | No | Static field injection |
+| `@Inject` | `@Inject(Dep) static #field` | No | Static private field |
+| `@Inject` | `@Inject(Dep) static accessor field` | No* | Static accessor |
+| `@Inject` | `@Inject(Dep) static accessor #field` | No* | Static private accessor |
+| `@InjectLazy` | `@InjectLazy(Dep) field` | ✅ Yes | Lazy public field |
+| `@InjectLazy` | `@InjectLazy(Dep) #field` | ⚠️ No | See caveat below |
+| `@InjectLazy` | `@InjectLazy(Dep) accessor field` | ✅ Yes | Lazy accessor |
+| `@InjectLazy` | `@InjectLazy(Dep) accessor #field` | ✅ Yes | **Recommended for lazy private** |
+| `@InjectLazy` | `@InjectLazy(Dep) static field` | ✅ Yes | Lazy static field |
+| `@InjectLazy` | `@InjectLazy(Dep) static #field` | ⚠️ No | Same caveat as instance private |
+| `@InjectLazy` | `@InjectLazy(Dep) static accessor #field` | ✅ Yes | Lazy static private accessor |
+
+*`@Inject` with accessors caches on first access, which is similar to lazy behavior.
+
+#### Caveat: `@InjectLazy` with Private Fields
+
+Due to JavaScript limitations, `@InjectLazy` on private fields (`#field`) **cannot be truly lazy**. The instance is 
+created at construction time (or class definition time for static fields), not on first access. This is because 
+`Object.defineProperty()` cannot create getters on private fields.
+
+This applies to both instance and static private fields.
+
+**Recommendation:** For true lazy injection with private members, use the `accessor` keyword:
+
+```javascript
+// ❌ Not truly lazy (created at construction)
+@InjectLazy(ExpensiveService) #service
+
+// ✅ Truly lazy (created on first access)
+@InjectLazy(ExpensiveService) accessor #service
+
+// Static fields work the same way:
+// ❌ Not truly lazy (created at class definition)
+@InjectLazy(ExpensiveService) static #service
+
+// ✅ Truly lazy
+@InjectLazy(ExpensiveService) static accessor #service
+```
+
+### Static Field Injection
+
+All injection decorators work with static fields. Static injections are shared across all instances of the class:
+
+```javascript
+import {Factory, Singleton, Inject} from 'decorator-dependency-injection';
+
+@Singleton()
+class SharedConfig {
+  apiUrl = 'https://api.example.com'
+}
+
+@Factory()
+class RequestLogger {
+  static nextId = 0
+  id = ++RequestLogger.nextId
+}
+
+class ApiService {
+  @Inject(SharedConfig) static config  // Shared across all instances
+  @Inject(RequestLogger) logger        // New instance per ApiService
+
+  getUrl() {
+    return ApiService.config.apiUrl
+  }
+}
+
+const a = new ApiService()
+const b = new ApiService()
+console.log(a.logger.id)  // 1
+console.log(b.logger.id)  // 2
+console.log(ApiService.config === ApiService.config)  // true (singleton)
+```
+
+### Additional Supported Features
+
+The injection decorators also support:
+
+- **Computed property names**: `@Inject(Dep) [dynamicPropertyName]`
+- **Symbol property names**: `@Inject(Dep) [Symbol('key')]`
+- **Inheritance**: Subclasses inherit parent class injections
+- **Multiple decorators**: Combine `@Inject` with other decorators
+- **Nested injection**: Singletons/Factories can have their own injected dependencies
+
 ## Passing parameters to a dependency
 
 You can pass parameters to a dependency by using the ```@Inject``` decorator with a function that returns the
@@ -194,6 +353,68 @@ import {clearContainer} from 'decorator-dependency-injection';
 clearContainer(); // Removes all registered singletons, factories, and mocks
 ```
 
+### Validation Helpers
+
+The library provides utilities to validate registrations at runtime, which is useful for catching configuration 
+errors early:
+
+#### `isRegistered(clazzOrName)`
+
+Check if a class or name is registered:
+
+```javascript
+import {Singleton, isRegistered} from 'decorator-dependency-injection';
+
+@Singleton()
+class MyService {}
+
+console.log(isRegistered(MyService));       // true
+console.log(isRegistered('unknownName'));   // false
+```
+
+#### `validateRegistrations(...tokens)`
+
+Validate multiple registrations at once. Throws an error with helpful details if any are missing:
+
+```javascript
+import {validateRegistrations} from 'decorator-dependency-injection';
+
+// At application startup - fail fast if dependencies are missing
+try {
+  validateRegistrations(UserService, AuthService, 'databaseConnection');
+} catch (err) {
+  // Error: Missing registrations: [UserService, databaseConnection]. 
+  //        Ensure these classes are decorated with @Singleton() or @Factory() before use.
+}
+```
+
+This is particularly useful in:
+- Application bootstrap to catch missing dependencies before runtime failures
+- Test setup to ensure mocks are properly configured
+- Module initialization to validate external dependencies
+
+### Debug Mode
+
+Enable debug logging to understand the injection lifecycle:
+
+```javascript
+import {setDebug} from 'decorator-dependency-injection';
+
+setDebug(true);
+
+// Now logs will appear when:
+// - Classes are registered: [DI] Registered singleton: UserService
+// - Instances are created: [DI] Creating singleton: UserService
+// - Cached singletons are returned: [DI] Returning cached singleton: UserService
+// - Mocks are registered: [DI] Mocked UserService with MockUserService
+```
+
+This is helpful for:
+- Debugging injection order issues
+- Understanding when instances are created (eager vs lazy)
+- Troubleshooting circular dependencies
+- Verifying test mocks are applied correctly
+
 You can also use the ```@Mock``` decorator as a proxy instead of a full mock. Any method calls not implemented in the
 mock will be passed to the real dependency.
 
@@ -276,6 +497,23 @@ const container = getContainer();
 console.log(container.has(MyService)); // Check if a class is registered
 ```
 
+## TypeScript Support
+
+The library includes TypeScript definitions with helpful type aliases:
+
+```typescript
+import {Constructor, InjectionToken} from 'decorator-dependency-injection';
+
+// Constructor<T> - a class constructor that creates instances of T
+const MyClass: Constructor<MyService> = MyService;
+
+// InjectionToken<T> - either a class or a string name
+const token1: InjectionToken<MyService> = MyService;
+const token2: InjectionToken = 'myServiceName';
+```
+
+All decorator functions and utilities are fully typed with generics for better autocomplete and type safety.
+
 ## Running the tests
 
 To run the tests, run the following command in the project root.
@@ -291,3 +529,4 @@ npm test
 - 1.0.2 - Added proxy option to @Mock decorator
 - 1.0.3 - Added @InjectLazy decorator
 - 1.0.4 - Added Container abstraction, clearContainer(), TypeScript definitions, improved proxy support
+- 1.0.5 - Added private field and accessor support for @Inject and @InjectLazy, debug mode, validation helpers

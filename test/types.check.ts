@@ -1,5 +1,5 @@
 // Type verification file - this file is used to verify TypeScript definitions
-// Run with: npx tsc --noEmit test/types.test.ts
+// Run with: npx tsc --noEmit test/types.check.ts
 
 import {
   Container,
@@ -13,7 +13,13 @@ import {
   clearContainer,
   getContainer,
   createProxy,
-  InstanceContext
+  isRegistered,
+  validateRegistrations,
+  setDebug,
+  InstanceContext,
+  FieldOrAccessorDecorator,
+  Constructor,
+  InjectionToken
 } from '../index'
 
 // Test Container class types
@@ -34,16 +40,16 @@ const namedSingletonDecorator: ClassDecorator = Singleton('named')
 const factoryDecorator: ClassDecorator = Factory()
 const namedFactoryDecorator: ClassDecorator = Factory('named')
 
-// Test Inject types
+// Test Inject types - now returns FieldOrAccessorDecorator for TC39 Stage 3 decorators
 class SomeClass {}
-const injectDecorator: PropertyDecorator = Inject(SomeClass)
-const injectWithName: PropertyDecorator = Inject('someName')
-const injectWithParams: PropertyDecorator = Inject(SomeClass, 'param1', 42)
+const injectDecorator: FieldOrAccessorDecorator = Inject(SomeClass)
+const injectWithName: FieldOrAccessorDecorator = Inject('someName')
+const injectWithParams: FieldOrAccessorDecorator = Inject(SomeClass, 'param1', 42)
 
-// Test InjectLazy types
-const lazyDecorator: PropertyDecorator = InjectLazy(SomeClass)
-const lazyWithName: PropertyDecorator = InjectLazy('someName')
-const lazyWithParams: PropertyDecorator = InjectLazy(SomeClass, 'param1', 42)
+// Test InjectLazy types - now returns FieldOrAccessorDecorator for TC39 Stage 3 decorators
+const lazyDecorator: FieldOrAccessorDecorator = InjectLazy(SomeClass)
+const lazyWithName: FieldOrAccessorDecorator = InjectLazy('someName')
+const lazyWithParams: FieldOrAccessorDecorator = InjectLazy(SomeClass, 'param1', 42)
 
 // Test Mock types
 const mockDecorator: ClassDecorator = Mock(SomeClass)
@@ -61,6 +67,25 @@ const defaultContainer: Container = getContainer()
 const mockObj = { foo: 'bar' }
 const originalObj = { foo: 'original', baz: 'value' }
 const proxied: typeof mockObj = createProxy(mockObj, originalObj)
+
+// Test isRegistered types
+const isReg1: boolean = isRegistered(SomeClass)
+const isReg2: boolean = isRegistered('someName')
+
+// Test validateRegistrations types
+validateRegistrations(SomeClass)
+validateRegistrations('someName')
+validateRegistrations(SomeClass, 'someName')
+
+// Test setDebug types
+setDebug(true)
+setDebug(false)
+container.setDebug(true)
+
+// Test new type aliases
+const ctor: Constructor<SomeClass> = SomeClass
+const token1: InjectionToken<SomeClass> = SomeClass
+const token2: InjectionToken = 'namedToken'
 
 // Test InstanceContext interface
 const ctx: InstanceContext = {

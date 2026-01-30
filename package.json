@@ -1,6 +1,6 @@
 {
   "name": "decorator-dependency-injection",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A simple library for dependency injection using decorators",
   "author": "Ravi Gairola <mallox@pyxzl.net>",
   "license": "Apache-2.0",

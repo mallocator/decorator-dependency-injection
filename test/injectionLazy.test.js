@@ -240,7 +240,7 @@ describe('Lazy Injection via fields', () => {
     }
 
     // noinspection JSUnusedLocalSymbols
-    const t = new Test()
+    const _t = new Test()
     expect(Object.prototype.hasOwnProperty.call(Test.prototype, 'dep')).toBe(false)
   })
 

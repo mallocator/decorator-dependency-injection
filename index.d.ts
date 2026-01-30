@@ -3,6 +3,17 @@
  */
 
 /**
+ * A class constructor type.
+ * @template T The instance type
+ */
+export type Constructor<T = any> = new (...args: any[]) => T
+
+/**
+ * Valid injection target: either a class constructor or a string name.
+ */
+export type InjectionToken<T = any> = string | Constructor<T>
+
+/**
  * Context for registered instances in the container
  */
 export interface InstanceContext {
@@ -23,43 +34,50 @@ export interface InstanceContext {
  */
 export declare class Container {
   /**
+   * Enable or disable debug logging.
+   * When enabled, logs when instances are created.
+   */
+  setDebug(enabled: boolean): void
+
+  /**
    * Register a class as a singleton.
    */
-  registerSingleton(clazz: new (...args: any[]) => any, name?: string): void
+  registerSingleton<T>(clazz: Constructor<T>, name?: string): void
 
   /**
    * Register a class as a factory.
    */
-  registerFactory(clazz: new (...args: any[]) => any, name?: string): void
+  registerFactory<T>(clazz: Constructor<T>, name?: string): void
 
   /**
    * Get the context for a given class or name.
+   * @throws Error if the class/name is not registered
    */
-  getContext(clazzOrName: string | (new (...args: any[]) => any)): InstanceContext
+  getContext<T>(clazzOrName: InjectionToken<T>): InstanceContext
 
   /**
    * Check if a class or name is registered.
    */
-  has(clazzOrName: string | (new (...args: any[]) => any)): boolean
+  has<T>(clazzOrName: InjectionToken<T>): boolean
 
   /**
    * Get or create an instance based on the context.
    */
-  getInstance(instanceContext: InstanceContext, params: any[]): any
+  getInstance<T>(instanceContext: InstanceContext, params: any[]): T
 
   /**
    * Register a mock for an existing class.
    */
-  registerMock(
-    targetClazzOrName: string | (new (...args: any[]) => any),
-    mockClazz: new (...args: any[]) => any,
+  registerMock<T>(
+    targetClazzOrName: InjectionToken<T>,
+    mockClazz: Constructor<T>,
     useProxy?: boolean
   ): void
 
   /**
    * Reset a specific mock to its original class.
    */
-  resetMock(clazzOrName: string | (new (...args: any[]) => any)): void
+  resetMock<T>(clazzOrName: InjectionToken<T>): void
 
   /**
    * Reset all mocks to their original classes.
@@ -85,33 +103,72 @@ export declare function Singleton(name?: string): ClassDecorator
 export declare function Factory(name?: string): ClassDecorator
 
 /**
- * Inject a singleton or factory instance into a class field.
- * @param clazzOrName The class or name to inject
- * @param params Optional parameters to pass to the constructor
+ * Decorator return type that works for both fields and accessors.
+ * For fields, returns a function that provides the initial value.
+ * For accessors, returns an object with get/set/init.
  */
-export declare function Inject<T>(
-  clazzOrName: string | (new (...args: any[]) => T),
-  ...params: any[]
-): PropertyDecorator
+export type FieldOrAccessorDecorator = (
+  target: undefined,
+  context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext
+) => void | ((initialValue: any) => any) | ClassAccessorDecoratorResult<any, any>
 
 /**
- * Inject a singleton or factory instance lazily into a class field.
- * The instance is created on first access.
+ * Inject a singleton or factory instance into a class field or accessor.
+ * 
+ * Supports:
+ * - Public fields: `@Inject(MyClass) myField`
+ * - Private fields: `@Inject(MyClass) #myField`
+ * - Public accessors: `@Inject(MyClass) accessor myField`
+ * - Private accessors: `@Inject(MyClass) accessor #myField`
+ * 
  * @param clazzOrName The class or name to inject
  * @param params Optional parameters to pass to the constructor
+ * 
+ * @example
+ * class MyService {
+ *   @Inject(Database) db
+ *   @Inject(Logger) #logger  // private field
+ *   @Inject(Cache) accessor cache  // accessor (recommended for lazy-like behavior)
+ * }
+ */
+export declare function Inject<T>(
+  clazzOrName: InjectionToken<T>,
+  ...params: any[]
+): FieldOrAccessorDecorator
+
+/**
+ * Inject a singleton or factory instance lazily into a class field or accessor.
+ * The instance is created on first access.
+ * 
+ * Supports:
+ * - Public fields: `@InjectLazy(MyClass) myField` (true lazy)
+ * - Private fields: `@InjectLazy(MyClass) #myField` (not truly lazy - use accessor instead)
+ * - Public accessors: `@InjectLazy(MyClass) accessor myField` (true lazy)
+ * - Private accessors: `@InjectLazy(MyClass) accessor #myField` (true lazy, recommended)
+ * 
+ * Note: For true lazy injection with private members, use the accessor syntax:
+ * `@InjectLazy(MyClass) accessor #myField`
+ * 
+ * @param clazzOrName The class or name to inject
+ * @param params Optional parameters to pass to the constructor
+ * 
+ * @example
+ * class MyService {
+ *   @InjectLazy(ExpensiveService) accessor #expensiveService
+ * }
  */
 export declare function InjectLazy<T>(
-  clazzOrName: string | (new (...args: any[]) => T),
+  clazzOrName: InjectionToken<T>,
   ...params: any[]
-): PropertyDecorator
+): FieldOrAccessorDecorator
 
 /**
  * Mark a class as a mock for another class.
  * @param mockedClazzOrName The class or name to mock
  * @param proxy If true, unmocked methods delegate to the original
  */
-export declare function Mock(
-  mockedClazzOrName: string | (new (...args: any[]) => any),
+export declare function Mock<T>(
+  mockedClazzOrName: InjectionToken<T>,
   proxy?: boolean
 ): ClassDecorator
 
@@ -124,7 +181,7 @@ export declare function resetMocks(): void
  * Reset a specific mock to its original class.
  * @param clazzOrName The class or name to reset
  */
-export declare function resetMock(clazzOrName: string | (new (...args: any[]) => any)): void
+export declare function resetMock<T>(clazzOrName: InjectionToken<T>): void
 
 /**
  * Clear all registered instances and mocks from the container.
@@ -135,6 +192,30 @@ export declare function clearContainer(): void
  * Get the default container instance.
  */
 export declare function getContainer(): Container
+
+/**
+ * Enable or disable debug logging for dependency injection.
+ * When enabled, logs when instances are registered, created, and mocked.
+ * @param enabled Whether to enable debug mode
+ */
+export declare function setDebug(enabled: boolean): void
+
+/**
+ * Check if a class or name is registered in the default container.
+ * Useful for validation before injection.
+ * @param clazzOrName The class or name to check
+ * @returns true if registered, false otherwise
+ */
+export declare function isRegistered<T>(clazzOrName: InjectionToken<T>): boolean
+
+/**
+ * Validate that all provided injection tokens are registered.
+ * Throws an error with details about missing registrations.
+ * Useful for fail-fast validation at application startup.
+ * @param tokens Array of classes or names to validate
+ * @throws Error if any token is not registered
+ */
+export declare function validateRegistrations<T extends InjectionToken[]>(...tokens: T): void
 
 /**
  * Create a proxy that delegates to the mock first, then falls back to the original.
