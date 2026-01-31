@@ -61,6 +61,12 @@ export declare class Container {
   has<T>(clazzOrName: InjectionToken<T>): boolean
 
   /**
+   * Resolve and return an instance by class or name.
+   * This allows non-decorator code to retrieve instances from the container.
+   */
+  resolve<T>(clazzOrName: InjectionToken<T>, ...params: any[]): T
+
+  /**
    * Get or create an instance based on the context.
    */
   getInstance<T>(instanceContext: InstanceContext, params: any[]): T
@@ -216,6 +222,29 @@ export declare function isRegistered<T>(clazzOrName: InjectionToken<T>): boolean
  * @throws Error if any token is not registered
  */
 export declare function validateRegistrations<T extends InjectionToken[]>(...tokens: T): void
+
+/**
+ * Resolve and return an instance by class or name.
+ * This allows non-decorator code (plain functions, modules, etc.) to retrieve
+ * instances from the DI container.
+ *
+ * @param clazzOrName The class or name to resolve
+ * @param params Optional parameters to pass to the constructor
+ * @returns The resolved instance
+ * @throws Error if the class or name is not registered
+ *
+ * @example
+ * // In a plain function:
+ * function handleRequest(req: Request) {
+ *   const userService = resolve(UserService)
+ *   return userService.getUser(req.userId)
+ * }
+ *
+ * @example
+ * // With a named registration:
+ * const db = resolve<Database>('database')
+ */
+export declare function resolve<T>(clazzOrName: InjectionToken<T>, ...params: any[]): T
 
 /**
  * Create a proxy that delegates to the mock first, then falls back to the original.

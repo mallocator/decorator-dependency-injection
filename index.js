@@ -313,6 +313,33 @@ export function validateRegistrations(...tokens) {
   }
 }
 
+/**
+ * Resolve and return an instance by class or name.
+ * This allows non-decorator code (plain functions, modules, etc.) to retrieve
+ * instances from the DI container.
+ *
+ * @template T
+ * @param {string|Function} clazzOrName The class or name to resolve
+ * @param {...*} params Parameters to pass to the constructor
+ * @returns {T} The resolved instance
+ * @throws {Error} If the class or name is not registered
+ * @example
+ * // In a plain function:
+ * function handleRequest(req) {
+ *   const userService = resolve(UserService)
+ *   return userService.getUser(req.userId)
+ * }
+ * @example
+ * // With a named registration:
+ * const db = resolve('database')
+ * @example
+ * // With factory parameters:
+ * const logger = resolve(Logger, 'my-module')
+ */
+export function resolve(clazzOrName, ...params) {
+  return defaultContainer.resolve(clazzOrName, ...params)
+}
+
 // Export Container class for advanced use cases (e.g., isolated containers)
 export {Container}
 

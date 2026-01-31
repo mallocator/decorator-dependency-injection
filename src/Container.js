@@ -107,6 +107,20 @@ export class Container {
   }
 
   /**
+   * Resolve and return an instance by class or name.
+   * This allows non-decorator code to retrieve instances from the container.
+   * @template T
+   * @param {string|Function} clazzOrName The class or name to resolve
+   * @param {...*} params Parameters to pass to the constructor
+   * @returns {T} The resolved instance
+   * @throws {Error} If the class or name is not registered
+   */
+  resolve(clazzOrName, ...params) {
+    const instanceContext = this.getContext(clazzOrName)
+    return this.getInstance(instanceContext, params)
+  }
+
+  /**
    * Get or create an instance based on the context.
    * @param {InstanceContext} instanceContext The instance context
    * @param {Array} params Constructor parameters

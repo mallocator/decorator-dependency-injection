@@ -353,6 +353,51 @@ import {clearContainer} from 'decorator-dependency-injection';
 clearContainer(); // Removes all registered singletons, factories, and mocks
 ```
 
+### Resolving Dependencies Without Decorators
+
+The `resolve` function allows non-class code (plain functions, modules, callbacks, etc.) to retrieve instances from the DI container:
+
+```javascript
+import {Singleton, Factory, resolve} from 'decorator-dependency-injection';
+
+@Singleton()
+class UserService {
+  getUser(id) {
+    return { id, name: 'John' }
+  }
+}
+
+@Factory()
+class Logger {
+  constructor(prefix) {
+    this.prefix = prefix
+  }
+  log(msg) {
+    console.log(`[${this.prefix}] ${msg}`)
+  }
+}
+
+// Use in plain functions
+function handleRequest(req) {
+  const userService = resolve(UserService)
+  return userService.getUser(req.userId)
+}
+
+// Use with factory parameters
+function createLogger(moduleName) {
+  return resolve(Logger, moduleName)
+}
+
+// Use with named registrations
+const db = resolve('databaseConnection')
+```
+
+This is useful when:
+- Integrating with frameworks that don't support decorators
+- Writing utility functions that need DI access
+- Bridging between decorator-based and non-decorator code
+- Testing or debugging the container directly
+
 ### Validation Helpers
 
 The library provides utilities to validate registrations at runtime, which is useful for catching configuration 
@@ -530,3 +575,4 @@ npm test
 - 1.0.3 - Added @InjectLazy decorator
 - 1.0.4 - Added Container abstraction, clearContainer(), TypeScript definitions, improved proxy support
 - 1.0.5 - Added private field and accessor support for @Inject and @InjectLazy, debug mode, validation helpers
+- 1.0.6 - Added resolve() function for non-decorator code
