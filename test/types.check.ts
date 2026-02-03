@@ -10,13 +10,21 @@ import {
   Mock,
   resetMocks,
   resetMock,
+  removeAllMocks,
+  removeMock,
+  resetSingletons,
   clearContainer,
   getContainer,
+  getMockInstance,
+  isMocked,
+  unregister,
+  listRegistrations,
   createProxy,
   isRegistered,
   validateRegistrations,
   setDebug,
   InstanceContext,
+  RegistrationInfo,
   FieldOrAccessorDecorator,
   Constructor,
   InjectionToken
@@ -27,12 +35,20 @@ const container: Container = new Container()
 container.registerSingleton(class TestClass {}, 'testName')
 container.registerFactory(class TestFactory {})
 const hasIt: boolean = container.has('testName')
-const context: InstanceContext = container.getContext('testName')
+const isMockedResult: boolean = container.isMocked('testName')
+const unregResult: boolean = container.unregister('testName')
+const registrationList = container.list()
+container.registerSingleton(class TestClass2 {}, 'testName2')
+const context: InstanceContext = container.getContext('testName2')
 const instance: any = container.getInstance(context, ['param1', 'param2'])
-container.registerMock('testName', class MockClass {}, true)
-container.resetMock('testName')
-container.resetAllMocks()
+container.registerMock('testName2', class MockClass {}, true)
+container.removeMock('testName2')
+container.removeAllMocks()
+container.resetSingletons()
+container.resetSingletons({ preserveMocks: true })
+container.resetSingletons({ preserveMocks: false })
 container.clear()
+container.clear({ preserveRegistrations: true })
 
 // Test decorator types
 const singletonDecorator: ClassDecorator = Singleton()
@@ -57,11 +73,46 @@ const mockWithProxy: ClassDecorator = Mock(SomeClass, true)
 const mockWithName: ClassDecorator = Mock('someName', false)
 
 // Test utility function types
+// Deprecated functions (still available for backwards compatibility)
 resetMocks()
 resetMock(SomeClass)
 resetMock('someName')
+
+// New recommended functions
+removeAllMocks()
+removeMock(SomeClass)
+removeMock('someName')
+resetSingletons()
+resetSingletons({ preserveMocks: true })
+resetSingletons({ preserveMocks: false })
+
 clearContainer()
+clearContainer({ preserveRegistrations: true })
 const defaultContainer: Container = getContainer()
+
+// Test getMockInstance with params
+const mockInstance: SomeClass = getMockInstance(SomeClass)
+const mockInstanceWithParams: SomeClass = getMockInstance(SomeClass, 'param1', 42)
+const mockInstanceByName: unknown = getMockInstance('someName')
+
+// Test isMocked
+const isMockedClass: boolean = isMocked(SomeClass)
+const isMockedName: boolean = isMocked('someName')
+
+// Test unregister
+const unregisterResult: boolean = unregister(SomeClass)
+const unregisterByName: boolean = unregister('someName')
+
+// Test listRegistrations
+const registrations: RegistrationInfo[] = listRegistrations()
+const firstReg = registrations[0]
+if (firstReg) {
+  const regKey: string | Constructor = firstReg.key
+  const regName: string = firstReg.name
+  const regType: 'singleton' | 'factory' = firstReg.type
+  const regIsMocked: boolean = firstReg.isMocked
+  const regHasInstance: boolean = firstReg.hasInstance
+}
 
 // Test createProxy types
 const mockObj = { foo: 'bar' }

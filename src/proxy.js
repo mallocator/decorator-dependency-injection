@@ -9,17 +9,15 @@
 export function createProxy(mock, original) {
   return new Proxy(mock, {
     get(target, prop, receiver) {
-      if (prop in target) {
-        return Reflect.get(target, prop, receiver)
-      }
-      return Reflect.get(original, prop, original)
+      return prop in target
+        ? Reflect.get(target, prop, receiver)
+        : Reflect.get(original, prop, original)
     },
 
     set(target, prop, value, receiver) {
-      if (prop in target) {
-        return Reflect.set(target, prop, value, receiver)
-      }
-      return Reflect.set(original, prop, value, original)
+      return prop in target
+        ? Reflect.set(target, prop, value, receiver)
+        : Reflect.set(original, prop, value, original)
     },
 
     has(target, prop) {
@@ -27,16 +25,18 @@ export function createProxy(mock, original) {
     },
 
     ownKeys(target) {
-      const mockKeys = Reflect.ownKeys(target)
-      const originalKeys = Reflect.ownKeys(original)
-      return [...new Set([...mockKeys, ...originalKeys])]
+      return [...new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(original)])]
     },
 
     getOwnPropertyDescriptor(target, prop) {
-      if (prop in target) {
-        return Reflect.getOwnPropertyDescriptor(target, prop)
-      }
-      return Reflect.getOwnPropertyDescriptor(original, prop)
+      return prop in target
+        ? Reflect.getOwnPropertyDescriptor(target, prop)
+        : Reflect.getOwnPropertyDescriptor(original, prop)
+    },
+
+    getPrototypeOf() {
+      // Return original's prototype so instanceof checks work
+      return Object.getPrototypeOf(original)
     }
   })
 }

@@ -1,15 +1,72 @@
 # Decorator Dependency Injection
 
 [![npm version](https://badge.fury.io/js/decorator-dependency-injection.svg)](http://badge.fury.io/js/decorator-dependency-injection)
+[![npm downloads](https://img.shields.io/npm/dm/decorator-dependency-injection.svg)](https://www.npmjs.com/package/decorator-dependency-injection)
 [![Build Status](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/release.yml/badge.svg)](https://github.com/mallocator/decorator-dependency-injection/actions/workflows/release.yml)
-[![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)](https://github.com/mallocator/decorator-dependency-injection)
+[![Coverage](https://img.shields.io/badge/coverage-98%25-brightgreen)](https://github.com/mallocator/decorator-dependency-injection)
+[![License](https://img.shields.io/npm/l/decorator-dependency-injection.svg)](https://github.com/mallocator/decorator-dependency-injection/blob/main/LICENSE)
 
-## Description
+**A lightweight dependency injection (DI) library for JavaScript and TypeScript using native TC39 Stage 3 decorators.**
 
-With the [TC39 proposal-decorators](https://github.com/tc39/proposal-decorators) reaching stage 3, it's time to start
-thinking about how we can use them in our projects. One of the most common patterns in JavaScript is dependency
-injection. This pattern is used to make our code more testable and maintainable. This library provides simple decorators
-to help you inject dependencies into your classes and mock them for testing.
+No reflection. No metadata. No configuration files. Just decorators that work.
+
+**Why this library?**
+- Modern TC39 decorator syntax - no `reflect-metadata` or `emitDecoratorMetadata` needed
+- Zero dependencies - tiny bundle size
+- Built-in mocking support for unit testing with Jest, Vitest, or Mocha
+- Full TypeScript support with type inference
+- Works with Node.js, Babel, and modern bundlers
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Core Concepts](#core-concepts)
+  - [Singleton](#singleton)
+  - [Factory](#factory)
+  - [Lazy Injection](#lazy-injection)
+  - [Passing Parameters](#passing-parameters)
+- [Testing](#testing)
+  - [Mocking Dependencies](#mocking-dependencies)
+  - [Proxy Mocking](#proxy-mocking)
+  - [Test Lifecycle](#test-lifecycle)
+  - [Best Practices](#testing-best-practices)
+- [Advanced Features](#advanced-features)
+  - [Private Fields](#private-fields)
+  - [Static Fields](#static-fields)
+  - [Named Registrations](#named-registrations)
+  - [Manual Resolution](#manual-resolution)
+  - [Container Introspection](#container-introspection)
+  - [Isolated Containers](#isolated-containers)
+- [API Reference](#api-reference)
+- [TypeScript Support](#typescript-support)
+
+---
+
+## Quick Start
+
+```javascript
+import { Singleton, Inject } from 'decorator-dependency-injection'
+
+@Singleton()
+class Database {
+  query(sql) { return db.execute(sql) }
+}
+
+class UserService {
+  @Inject(Database) db
+
+  getUser(id) {
+    return this.db.query(`SELECT * FROM users WHERE id = ${id}`)
+  }
+}
+
+new UserService().getUser(1) // Database is automatically injected
+```
+
+**That's it.** The `Database` instance is created once and shared everywhere it's injected.
+
+---
 
 ## Installation
 
@@ -17,555 +74,429 @@ to help you inject dependencies into your classes and mock them for testing.
 npm install decorator-dependency-injection
 ```
 
-Until we reach stage 4, you will need to enable the decorators proposal in your project. You can do this by adding the
-following babel transpiler options to your `.babelrc` file.
+<details>
+<summary><strong>Babel Configuration (required until decorators reach Stage 4)</strong></summary>
+
+Add to your `.babelrc` or `babel.config.json`:
 
 ```json
 {
-  "plugins": [
-    "@babel/plugin-proposal-decorators"
-  ]
+  "plugins": ["@babel/plugin-proposal-decorators"]
 }
 ```
 
-To run your project with decorators enabled, you will need to use the babel transpiler. You can do this by running the
-following command in your project root.
-
+Run with Babel:
 ```bash
 npx babel-node index.js
 ```
 
-Finally, for running tests with decorators enabled, you will need to use the babel-jest package. You can do this by
-adding the following configuration to your `package.json` file.
-
+For Jest, add to `package.json`:
 ```json
 {
   "jest": {
-    "transform": {
-      "^.+\\.jsx?$": "babel-jest"
-    }
+    "transform": { "^.+\\.jsx?$": "babel-jest" }
   }
 }
 ```
 
-Other testing frameworks may require a different configuration.
+See this project's `package.json` for a complete working example.
 
-For a full example of how to set up a project with decorators, see this project's ```package.json``` file.
+</details>
 
-## Usage
+---
 
-There are two ways of specifying injectable dependencies: ```@Singleton``` and ```@Factory```:
+## Core Concepts
 
 ### Singleton
 
-The ```@Singleton``` decorator is used to inject a single instance of a dependency into a class. This is useful when you
-want to share the same instance of a class across multiple classes.
+A singleton creates **one shared instance** across your entire application:
 
 ```javascript
-import {Singleton, Inject} from 'decorator-dependency-injection';
+import { Singleton, Inject } from 'decorator-dependency-injection'
 
 @Singleton()
-class Dependency {
+class ConfigService {
+  apiUrl = 'https://api.example.com'
 }
 
-class Consumer {
-  @Inject(Dependency) dependency // creates an instance only once
+class ServiceA {
+  @Inject(ConfigService) config
+}
+
+class ServiceB {
+  @Inject(ConfigService) config  // Same instance as ServiceA
 }
 ```
 
 ### Factory
 
-The ```@Factory``` decorator is used to inject a new instance of a dependency into a class each time it is requested.
-This is useful when you want to create a new instance of a class each time it is injected.
+A factory creates a **new instance** each time it's injected:
 
 ```javascript
-import {Factory, Inject} from 'decorator-dependency-injection';
+import { Factory, Inject } from 'decorator-dependency-injection'
 
 @Factory()
-class Dependency {
+class RequestLogger {
+  id = Math.random()
 }
 
-class Consumer {
-  @Inject(Dependency) dependency // creates a new instance each time a new Consumer is created
+class Handler {
+  @Inject(RequestLogger) logger  // New instance for each Handler
 }
+
+new Handler().logger.id !== new Handler().logger.id  // true
 ```
 
-### InjectLazy
+### Lazy Injection
 
-```@Inject``` annotated properties are evaluated during instance initialization. That means that all properties should
-be accessible in the constructor. That also means that we're creating an instance no matter if you access the property
-or not. If you want to only create an instance when you access the property, you can use the ```@InjectLazy```
-decorator. This will create the instance only when the property is accessed for the first time. Note that this also
-works from the constructor, same as the regular ```@Inject```.  
+By default, dependencies are created when the parent class is instantiated. Use `@InjectLazy` to defer creation until first access:
 
 ```javascript
-import {Singleton, InjectLazy} from 'decorator-dependency-injection';
-
-@Singleton()
-class Dependency {
-}
-
-class Consumer {
-  @InjectLazy(Dependency) dependency // creates an instance only when the property is accessed
-}
-```
-
-### Private Field Injection
-
-Both `@Inject` and `@InjectLazy` support private fields using the `#` syntax:
-
-```javascript
-import {Singleton, Inject} from 'decorator-dependency-injection';
-
-@Singleton()
-class Database {
-  query(sql) { /* ... */ }
-}
-
-class UserService {
-  @Inject(Database) #db  // truly private - not accessible from outside
-  
-  getUser(id) {
-    return this.#db.query(`SELECT * FROM users WHERE id = ${id}`)
-  }
-}
-
-const service = new UserService()
-service.#db  // SyntaxError: Private field '#db' must be declared
-```
-
-### The `accessor` Keyword
-
-The `accessor` keyword (part of the TC39 decorators proposal) creates an auto-accessor - a private backing field with 
-automatic getter/setter. This is particularly useful for **lazy injection with private fields**.
-
-```javascript
-class Example {
-  accessor myField = 'value'
-}
-
-// Roughly equivalent to:
-class Example {
-  #myField = 'value'
-  get myField() { return this.#myField }
-  set myField(v) { this.#myField = v }
-}
-```
-
-#### Using `accessor` with Injection
-
-```javascript
-import {Singleton, Inject, InjectLazy} from 'decorator-dependency-injection';
+import { Singleton, InjectLazy } from 'decorator-dependency-injection'
 
 @Singleton()
 class ExpensiveService {
   constructor() {
-    console.log('ExpensiveService created')
+    console.log('ExpensiveService created')  // Only when accessed
   }
 }
 
-class Consumer {
-  // Public accessor - works with both @Inject and @InjectLazy
-  @Inject(ExpensiveService) accessor service
-  
-  // Private accessor - recommended for lazy private injection
-  @InjectLazy(ExpensiveService) accessor #privateService
-  
+class MyClass {
+  @InjectLazy(ExpensiveService) service
+
   doWork() {
-    // Instance created only when first accessed
-    return this.#privateService.process()
+    this.service.process()  // ExpensiveService created here
   }
 }
 ```
 
-### Injection Support Matrix
+This is also useful for breaking circular dependencies.
 
-| Decorator | Syntax | Lazy? | Notes |
-|-----------|--------|-------|-------|
-| `@Inject` | `@Inject(Dep) field` | No | Standard injection |
-| `@Inject` | `@Inject(Dep) #field` | No | Private field injection |
-| `@Inject` | `@Inject(Dep) accessor field` | No* | Accessor injection |
-| `@Inject` | `@Inject(Dep) accessor #field` | No* | Private accessor injection |
-| `@Inject` | `@Inject(Dep) static field` | No | Static field injection |
-| `@Inject` | `@Inject(Dep) static #field` | No | Static private field |
-| `@Inject` | `@Inject(Dep) static accessor field` | No* | Static accessor |
-| `@Inject` | `@Inject(Dep) static accessor #field` | No* | Static private accessor |
-| `@InjectLazy` | `@InjectLazy(Dep) field` | ✅ Yes | Lazy public field |
-| `@InjectLazy` | `@InjectLazy(Dep) #field` | ⚠️ No | See caveat below |
-| `@InjectLazy` | `@InjectLazy(Dep) accessor field` | ✅ Yes | Lazy accessor |
-| `@InjectLazy` | `@InjectLazy(Dep) accessor #field` | ✅ Yes | **Recommended for lazy private** |
-| `@InjectLazy` | `@InjectLazy(Dep) static field` | ✅ Yes | Lazy static field |
-| `@InjectLazy` | `@InjectLazy(Dep) static #field` | ⚠️ No | Same caveat as instance private |
-| `@InjectLazy` | `@InjectLazy(Dep) static accessor #field` | ✅ Yes | Lazy static private accessor |
+### Passing Parameters
 
-*`@Inject` with accessors caches on first access, which is similar to lazy behavior.
-
-#### Caveat: `@InjectLazy` with Private Fields
-
-Due to JavaScript limitations, `@InjectLazy` on private fields (`#field`) **cannot be truly lazy**. The instance is 
-created at construction time (or class definition time for static fields), not on first access. This is because 
-`Object.defineProperty()` cannot create getters on private fields.
-
-This applies to both instance and static private fields.
-
-**Recommendation:** For true lazy injection with private members, use the `accessor` keyword:
+Pass constructor arguments after the class reference:
 
 ```javascript
-// ❌ Not truly lazy (created at construction)
-@InjectLazy(ExpensiveService) #service
-
-// ✅ Truly lazy (created on first access)
-@InjectLazy(ExpensiveService) accessor #service
-
-// Static fields work the same way:
-// ❌ Not truly lazy (created at class definition)
-@InjectLazy(ExpensiveService) static #service
-
-// ✅ Truly lazy
-@InjectLazy(ExpensiveService) static accessor #service
-```
-
-### Static Field Injection
-
-All injection decorators work with static fields. Static injections are shared across all instances of the class:
-
-```javascript
-import {Factory, Singleton, Inject} from 'decorator-dependency-injection';
-
-@Singleton()
-class SharedConfig {
-  apiUrl = 'https://api.example.com'
-}
+import { Factory, Inject } from 'decorator-dependency-injection'
 
 @Factory()
-class RequestLogger {
-  static nextId = 0
-  id = ++RequestLogger.nextId
+class Logger {
+  constructor(prefix, level) {
+    this.prefix = prefix
+    this.level = level
+  }
 }
 
+class MyService {
+  @Inject(Logger, 'MyService', 'debug') logger
+}
+```
+
+For singletons, parameters are only used on the first instantiation.
+
+---
+
+## Testing
+
+### Mocking Dependencies
+
+Use `@Mock` to replace a dependency with a test double:
+
+```javascript
+import { Singleton, Mock, removeMock, resolve } from 'decorator-dependency-injection'
+
+@Singleton()
+class UserService {
+  getUser(id) { return fetchFromDatabase(id) }
+}
+
+// In your test file:
+@Mock(UserService)
+class MockUserService {
+  getUser(id) { return { id, name: 'Test User' } }
+}
+
+// Now all injections of UserService receive MockUserService
+const user = resolve(UserService).getUser(1)  // { id: 1, name: 'Test User' }
+
+// Restore the original
+removeMock(UserService)
+```
+
+### Proxy Mocking
+
+Mock only specific methods while keeping the rest of the original implementation:
+
+```javascript
+@Mock(UserService, true)  // true enables proxy mode
+class PartialMock {
+  getUser(id) { return { id, name: 'Mocked' } }
+  // All other methods delegate to the real UserService
+}
+```
+
+### Test Lifecycle
+
+| Function | Purpose |
+|----------|---------|
+| `removeMock(Class)` | Remove a specific mock, restore original |
+| `removeAllMocks()` | Remove all mocks, restore all originals |
+| `resetSingletons()` | Clear cached instances (keeps mocks) |
+| `clearContainer()` | Remove all registrations entirely |
+
+```javascript
+import { removeAllMocks, resetSingletons } from 'decorator-dependency-injection'
+
+afterEach(() => {
+  removeAllMocks()     // Restore original implementations
+  // OR
+  resetSingletons()    // Keep mocks, but get fresh instances
+})
+```
+
+**Note:** These functions remove/restore mocks. They do NOT clear mock call history. If using Vitest/Jest spies, call `.mockClear()` separately.
+
+### Testing Best Practices
+
+```javascript
+import { Mock, removeAllMocks, resetSingletons } from 'decorator-dependency-injection'
+import { vi, describe, it, beforeEach, afterEach } from 'vitest'
+
+// Hoist mock functions for per-test configuration
+const mockGetUser = vi.hoisted(() => vi.fn())
+
+@Mock(UserService)
+class MockUserService {
+  getUser = mockGetUser
+}
+
+describe('MyFeature', () => {
+  beforeEach(() => {
+    mockGetUser.mockClear()  // Clear call history
+    resetSingletons()        // Fresh instances per test
+  })
+
+  afterEach(() => {
+    removeAllMocks()         // Restore originals
+  })
+
+  it('should work', () => {
+    mockGetUser.mockReturnValue({ id: 1 })
+    // ... test code ...
+    expect(mockGetUser).toHaveBeenCalled()
+  })
+})
+```
+
+Additional test utilities:
+
+```javascript
+import { isMocked, getMockInstance } from 'decorator-dependency-injection'
+
+// Check if a class is currently mocked
+if (isMocked(UserService)) { /* ... */ }
+
+// Access the mock instance to configure it
+getMockInstance(UserService).someMethod.mockReturnValue('test')
+```
+
+---
+
+## Advanced Features
+
+### Private Fields
+
+Both `@Inject` and `@InjectLazy` support private fields:
+
+```javascript
+class UserService {
+  @Inject(Database) #db  // Truly private
+
+  getUser(id) {
+    return this.#db.query(`SELECT * FROM users WHERE id = ${id}`)
+  }
+}
+```
+
+For lazy injection with private fields, use the `accessor` keyword:
+
+```javascript
+class UserService {
+  @InjectLazy(Database) accessor #db  // Lazy AND private
+}
+```
+
+<details>
+<summary><strong>Why accessor for lazy private fields?</strong></summary>
+
+JavaScript doesn't allow `Object.defineProperty()` on private fields, so `@InjectLazy` on `#field` creates the instance at construction time (not truly lazy). The `accessor` keyword creates a private backing field with getter/setter that enables true lazy behavior.
+
+</details>
+
+### Static Fields
+
+Inject at the class level (shared across all instances):
+
+```javascript
 class ApiService {
-  @Inject(SharedConfig) static config  // Shared across all instances
-  @Inject(RequestLogger) logger        // New instance per ApiService
+  @Inject(Config) static config  // Class-level singleton
+  @Inject(Logger) logger         // Instance-level
 
   getUrl() {
     return ApiService.config.apiUrl
   }
 }
-
-const a = new ApiService()
-const b = new ApiService()
-console.log(a.logger.id)  // 1
-console.log(b.logger.id)  // 2
-console.log(ApiService.config === ApiService.config)  // true (singleton)
 ```
 
-### Additional Supported Features
+### Named Registrations
 
-The injection decorators also support:
-
-- **Computed property names**: `@Inject(Dep) [dynamicPropertyName]`
-- **Symbol property names**: `@Inject(Dep) [Symbol('key')]`
-- **Inheritance**: Subclasses inherit parent class injections
-- **Multiple decorators**: Combine `@Inject` with other decorators
-- **Nested injection**: Singletons/Factories can have their own injected dependencies
-
-## Passing parameters to a dependency
-
-You can pass parameters to a dependency by using the ```@Inject``` decorator with a function that returns the
-dependency.
+Register dependencies under string names instead of class references:
 
 ```javascript
-import {Factory, Inject} from 'decorator-dependency-injection';
+@Singleton('database')
+class PostgresDatabase { }
 
-@Factory
-class Dependency {
-  constructor(param1, param2) {
-    this.param1 = param1
-    this.param2 = param2
-  }
-}
-
-class Consumer {
-  @Inject(Dependency, 'myParam', 'myOtherParam') dependency
-}
-```
-
-While this is most useful for Factory dependencies, it can also be used with Singleton dependencies. However, parameters
-will only be passed to the dependency the first time it is created.
-
-## Mocking dependencies for testing
-
-You can mock dependencies by using the ```@Mock``` decorator with a function that returns the mock dependency.
-
-```javascript
-import {Factory, Inject, Mock, resetMock} from 'decorator-dependency-injection'
-
-@Factory()
-class Dependency {
-  method() {
-    return 'real'
-  }
-}
-
-class Consumer {
-  @Inject(Dependency) dependency
-
-  constructor() {
-    console.log(this.dependency.method())
-  }
-}
-
-// Test Code
-
-@Mock(Dependency)
-class MockDependency {
-  method() {
-    return 'mock'
-  }
-}
-
-const consumer = new Consumer()  // prints 'mock'
-
-resetMock(Dependency)
-
-const consumer = new Consumer()  // prints 'real'
-```
-
-### Resetting Mocks
-
-The `resetMock` utility function allows you to remove any active mock for a dependency and restore the original
-implementation. This is useful for cleaning up after tests or switching between real and mock dependencies.
-
-```javascript
-import {resetMock, resetMocks} from 'decorator-dependency-injection';
-
-resetMock(Dependency); // Restores the original Dependency implementation
-resetMocks(); // Restores all mocked dependencies
-```
-
-### Clearing the Container
-
-For complete test isolation, you can clear all registered instances from the container:
-
-```javascript
-import {clearContainer} from 'decorator-dependency-injection';
-
-clearContainer(); // Removes all registered singletons, factories, and mocks
-```
-
-### Resolving Dependencies Without Decorators
-
-The `resolve` function allows non-class code (plain functions, modules, callbacks, etc.) to retrieve instances from the DI container:
-
-```javascript
-import {Singleton, Factory, resolve} from 'decorator-dependency-injection';
-
-@Singleton()
 class UserService {
-  getUser(id) {
-    return { id, name: 'John' }
-  }
+  @Inject('database') db
 }
+```
 
-@Factory()
-class Logger {
-  constructor(prefix) {
-    this.prefix = prefix
-  }
-  log(msg) {
-    console.log(`[${this.prefix}] ${msg}`)
-  }
-}
+### Manual Resolution
 
-// Use in plain functions
+Retrieve instances programmatically (useful for non-class code):
+
+```javascript
+import { resolve } from 'decorator-dependency-injection'
+
 function handleRequest(req) {
   const userService = resolve(UserService)
   return userService.getUser(req.userId)
 }
 
-// Use with factory parameters
-function createLogger(moduleName) {
-  return resolve(Logger, moduleName)
-}
+// With parameters
+const logger = resolve(Logger, 'my-module')
 
-// Use with named registrations
-const db = resolve('databaseConnection')
+// With named registration
+const db = resolve('database')
 ```
 
-This is useful when:
-- Integrating with frameworks that don't support decorators
-- Writing utility functions that need DI access
-- Bridging between decorator-based and non-decorator code
-- Testing or debugging the container directly
+### Container Introspection
 
-### Validation Helpers
-
-The library provides utilities to validate registrations at runtime, which is useful for catching configuration 
-errors early:
-
-#### `isRegistered(clazzOrName)`
-
-Check if a class or name is registered:
+Debug and inspect the container state:
 
 ```javascript
-import {Singleton, isRegistered} from 'decorator-dependency-injection';
+import { 
+  getContainer, 
+  listRegistrations, 
+  isRegistered,
+  validateRegistrations,
+  setDebug 
+} from 'decorator-dependency-injection'
 
-@Singleton()
-class MyService {}
+// Check registration status
+isRegistered(UserService)  // true/false
 
-console.log(isRegistered(MyService));       // true
-console.log(isRegistered('unknownName'));   // false
+// Fail fast at startup
+validateRegistrations(UserService, AuthService, 'database')
+// Throws if any are missing
+
+// List all registrations
+listRegistrations().forEach(reg => {
+  console.log(`${reg.name}: ${reg.type}, mocked: ${reg.isMocked}`)
+})
+
+// Enable debug logging
+setDebug(true)
+// [DI] Registered singleton: UserService
+// [DI] Creating singleton: UserService
+// [DI] Mocked UserService with MockUserService
 ```
 
-#### `validateRegistrations(...tokens)`
+### Isolated Containers
 
-Validate multiple registrations at once. Throws an error with helpful details if any are missing:
+Create separate containers for parallel test execution or module isolation:
 
 ```javascript
-import {validateRegistrations} from 'decorator-dependency-injection';
+import { Container } from 'decorator-dependency-injection'
 
-// At application startup - fail fast if dependencies are missing
-try {
-  validateRegistrations(UserService, AuthService, 'databaseConnection');
-} catch (err) {
-  // Error: Missing registrations: [UserService, databaseConnection]. 
-  //        Ensure these classes are decorated with @Singleton() or @Factory() before use.
-}
+const container = new Container()
+container.registerSingleton(MyService)
+const instance = container.resolve(MyService)
 ```
 
-This is particularly useful in:
-- Application bootstrap to catch missing dependencies before runtime failures
-- Test setup to ensure mocks are properly configured
-- Module initialization to validate external dependencies
+---
 
-### Debug Mode
+## API Reference
 
-Enable debug logging to understand the injection lifecycle:
+### Decorators
 
-```javascript
-import {setDebug} from 'decorator-dependency-injection';
+| Decorator | Description |
+|-----------|-------------|
+| `@Singleton(name?)` | Register a class as a singleton |
+| `@Factory(name?)` | Register a class as a factory |
+| `@Inject(target, ...params)` | Inject a dependency into a field |
+| `@InjectLazy(target, ...params)` | Inject lazily (on first access) |
+| `@Mock(target, proxy?)` | Replace a dependency with a mock |
 
-setDebug(true);
+### Functions
 
-// Now logs will appear when:
-// - Classes are registered: [DI] Registered singleton: UserService
-// - Instances are created: [DI] Creating singleton: UserService
-// - Cached singletons are returned: [DI] Returning cached singleton: UserService
-// - Mocks are registered: [DI] Mocked UserService with MockUserService
-```
+| Function | Description |
+|----------|-------------|
+| `resolve(target, ...params)` | Get an instance from the container |
+| `removeMock(target)` | Remove a mock, restore original |
+| `removeAllMocks()` | Remove all mocks |
+| `resetSingletons(options?)` | Clear cached singleton instances |
+| `clearContainer(options?)` | Clear all registrations |
+| `isRegistered(target)` | Check if target is registered |
+| `isMocked(target)` | Check if target is mocked |
+| `getMockInstance(target)` | Get the mock instance |
+| `validateRegistrations(...targets)` | Throw if any target is not registered |
+| `listRegistrations()` | List all registrations |
+| `getContainer()` | Get the default container |
+| `setDebug(enabled)` | Enable/disable debug logging |
+| `unregister(target)` | Remove a registration |
 
-This is helpful for:
-- Debugging injection order issues
-- Understanding when instances are created (eager vs lazy)
-- Troubleshooting circular dependencies
-- Verifying test mocks are applied correctly
-
-You can also use the ```@Mock``` decorator as a proxy instead of a full mock. Any method calls not implemented in the
-mock will be passed to the real dependency.
-
-```javascript
-import {Factory, Inject, Mock, resetMock} from 'decorator-dependency-injection'
-
-@Factory()
-class Dependency {
-  method() {
-    return 'real'
-  }
-
-  otherMethod() {
-    return 'other'
-  }
-}
-
-class Consumer {
-  @Inject(Dependency) dependency
-
-  constructor() {
-    console.log(this.dependency.method(), this.dependency.otherMethod())
-  }
-}
-
-// Test Code
-
-@Mock(Dependency, true)
-class MockDependency {
-  method() {
-    return 'mock'
-  }
-}
-
-const consumer = new Consumer()  // prints 'mock other'
-
-resetMock(Dependency)
-
-const consumer = new Consumer()  // prints 'real other'
-```
-
-For more examples, see the tests in the ```test``` directory.
-
-## Advanced Usage
-
-### Using Isolated Containers
-
-For advanced scenarios like parallel test execution or module isolation, you can create separate containers:
-
-```javascript
-import {Container} from 'decorator-dependency-injection';
-
-const container1 = new Container();
-const container2 = new Container();
-
-class MyService {}
-
-// Register the same class in different containers
-container1.registerSingleton(MyService);
-container2.registerSingleton(MyService);
-
-// Each container maintains its own singleton instance
-const ctx1 = container1.getContext(MyService);
-const ctx2 = container2.getContext(MyService);
-
-const instance1 = container1.getInstance(ctx1, []);
-const instance2 = container2.getInstance(ctx2, []);
-
-console.log(instance1 === instance2); // false - different containers
-```
-
-### Accessing the Default Container
-
-You can access the default global container for programmatic registration:
-
-```javascript
-import {getContainer} from 'decorator-dependency-injection';
-
-const container = getContainer();
-console.log(container.has(MyService)); // Check if a class is registered
-```
+---
 
 ## TypeScript Support
 
-The library includes TypeScript definitions with helpful type aliases:
+Full TypeScript definitions are included:
 
 ```typescript
-import {Constructor, InjectionToken} from 'decorator-dependency-injection';
+import { Constructor, InjectionToken, RegistrationInfo } from 'decorator-dependency-injection'
 
-// Constructor<T> - a class constructor that creates instances of T
-const MyClass: Constructor<MyService> = MyService;
+// Constructor<T> - a class constructor
+const MyClass: Constructor<MyService> = MyService
 
-// InjectionToken<T> - either a class or a string name
-const token1: InjectionToken<MyService> = MyService;
-const token2: InjectionToken = 'myServiceName';
+// InjectionToken<T> - class or string name
+const token: InjectionToken<MyService> = MyService
+const named: InjectionToken = 'myService'
+
+// RegistrationInfo - from listRegistrations()
+// { key, name, type, isMocked, hasInstance }
 ```
 
-All decorator functions and utilities are fully typed with generics for better autocomplete and type safety.
+---
 
-## Running the tests
+## Why Not [Other Library]?
 
-To run the tests, run the following command in the project root.
+| Feature | This Library | InversifyJS | TSyringe | TypeDI |
+|---------|--------------|-------------|----------|--------|
+| Native decorators (Stage 3) | Yes | No (legacy) | No (legacy) | No (legacy) |
+| Zero dependencies | Yes | No | No | No |
+| No reflect-metadata | Yes | No | No | No |
+| Built-in mocking | Yes | No | No | No |
+| Bundle size | ~3KB | ~50KB | ~15KB | ~20KB |
 
-```bash
-npm test
-```
+This library is ideal if you want simple, modern DI without the complexity of container configuration or reflection APIs.
+
+---
+
+## Related Topics
+
+Searching for: JavaScript dependency injection, TypeScript DI container, decorator-based IoC, inversion of control JavaScript, @Inject decorator, @Singleton pattern, service locator pattern, unit test mocking, Jest dependency injection, Vitest mocking.
+
+---
 
 ## Version History
 
@@ -576,3 +507,4 @@ npm test
 - 1.0.4 - Added Container abstraction, clearContainer(), TypeScript definitions, improved proxy support
 - 1.0.5 - Added private field and accessor support for @Inject and @InjectLazy, debug mode, validation helpers
 - 1.0.6 - Added resolve() function for non-decorator code
+- 1.0.7 - Added more control for mocking in tests and improved compatibility

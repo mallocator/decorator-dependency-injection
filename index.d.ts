@@ -30,9 +30,42 @@ export interface InstanceContext {
 }
 
 /**
+ * Registration info returned by list()
+ */
+export interface RegistrationInfo {
+  /** The registration key (class or string name) */
+  key: string | Constructor
+  /** Human-readable name */
+  name: string
+  /** Registration type */
+  type: 'singleton' | 'factory'
+  /** Whether this registration is mocked */
+  isMocked: boolean
+  /** Whether a cached instance exists */
+  hasInstance: boolean
+}
+
+/**
  * A dependency injection container that manages singleton and factory instances.
  */
 export declare class Container {
+  /**
+   * Custom string tag for better debugging.
+   * Shows as [object Container] in console.
+   */
+  readonly [Symbol.toStringTag]: 'Container'
+
+  /**
+   * Make the container iterable.
+   * Yields registration info for each registered class.
+   */
+  [Symbol.iterator](): IterableIterator<RegistrationInfo>
+
+  /**
+   * Get the number of registrations in the container.
+   */
+  readonly size: number
+
   /**
    * Enable or disable debug logging.
    * When enabled, logs when instances are created.
@@ -61,6 +94,22 @@ export declare class Container {
   has<T>(clazzOrName: InjectionToken<T>): boolean
 
   /**
+   * Check if a class or name has a mock registered.
+   */
+  isMocked<T>(clazzOrName: InjectionToken<T>): boolean
+
+  /**
+   * Unregister a class or name from the container.
+   * @returns true if the registration was removed, false if it wasn't registered
+   */
+  unregister<T>(clazzOrName: InjectionToken<T>): boolean
+
+  /**
+   * List all registrations in the container.
+   */
+  list(): RegistrationInfo[]
+
+  /**
    * Resolve and return an instance by class or name.
    * This allows non-decorator code to retrieve instances from the container.
    */
@@ -74,26 +123,49 @@ export declare class Container {
   /**
    * Register a mock for an existing class.
    */
-  registerMock<T>(
-    targetClazzOrName: InjectionToken<T>,
-    mockClazz: Constructor<T>,
-    useProxy?: boolean
-  ): void
+  registerMock<T>(targetClazzOrName: InjectionToken<T>, mockClazz: Constructor<Partial<T>>, useProxy?: boolean): void
 
   /**
-   * Reset a specific mock to its original class.
+   * Get the mock instance for a mocked class.
+   * @throws Error if the class is not mocked
+   */
+  getMockInstance<T>(clazzOrName: InjectionToken<T>, ...params: any[]): T
+
+  /**
+   * Remove a specific mock and restore the original class.
+   * This completely removes the mock - it does NOT clear mock call history.
+   */
+  removeMock<T>(clazzOrName: InjectionToken<T>): void
+
+  /**
+   * Remove all mocks and restore original classes.
+   * This completely removes all mocks - it does NOT clear mock call history.
+   */
+  removeAllMocks(): void
+
+  /**
+   * @deprecated Use removeMock() instead. This will be removed in a future version.
+   * WARNING: This removes the mock, it does NOT clear mock call history.
    */
   resetMock<T>(clazzOrName: InjectionToken<T>): void
 
   /**
-   * Reset all mocks to their original classes.
+   * @deprecated Use removeAllMocks() instead. This will be removed in a future version.
+   * WARNING: This removes all mocks, it does NOT clear mock call history.
    */
   resetAllMocks(): void
 
   /**
-   * Clear all registered instances and mocks.
+   * Reset singleton instances without removing registrations.
+   * Mock registrations are preserved by default.
    */
-  clear(): void
+  resetSingletons(options?: { preserveMocks?: boolean }): void
+
+  /**
+   * Clear all registered instances and mocks.
+   * @param options.preserveRegistrations If true, keeps all registrations but clears cached instances.
+   */
+  clear(options?: { preserveRegistrations?: boolean }): void
 }
 
 /**
@@ -170,8 +242,33 @@ export declare function InjectLazy<T>(
 
 /**
  * Mark a class as a mock for another class.
+ * The mock class can implement only the methods you need (Partial<T>).
+ * 
  * @param mockedClazzOrName The class or name to mock
- * @param proxy If true, unmocked methods delegate to the original
+ * @param proxy If true, unmocked methods delegate to the original implementation
+ * 
+ * @example Basic mocking
+ * ```ts
+ * @Mock(UserService)
+ * class MockUserService {
+ *   // Only implement methods you need to mock
+ *   getUser() { return { id: 1, name: 'Test' } }
+ * }
+ * ```
+ * 
+ * @example With hoisted mock functions (Vitest/Jest)
+ * ```ts
+ * const mockGetUser = vi.hoisted(() => vi.fn())
+ * 
+ * @Mock(UserService)
+ * class MockUserService {
+ *   getUser = mockGetUser
+ * }
+ * 
+ * beforeEach(() => {
+ *   mockGetUser.mockClear() // Clear call history, not removeMock()
+ * })
+ * ```
  */
 export declare function Mock<T>(
   mockedClazzOrName: InjectionToken<T>,
@@ -179,20 +276,46 @@ export declare function Mock<T>(
 ): ClassDecorator
 
 /**
- * Reset all mocks to their original classes.
+ * Remove all mocks and restore original classes.
+ * This completely removes all mocks - it does NOT clear mock call history.
+ */
+export declare function removeAllMocks(): void
+
+/**
+ * Remove a specific mock and restore the original class.
+ * This completely removes the mock - it does NOT clear mock call history.
+ * @param clazzOrName The class or name to restore
+ */
+export declare function removeMock<T>(clazzOrName: InjectionToken<T>): void
+
+/**
+ * @deprecated Use removeAllMocks() instead. This will be removed in a future version.
+ * WARNING: This removes all mocks, it does NOT clear mock call history.
  */
 export declare function resetMocks(): void
 
 /**
- * Reset a specific mock to its original class.
- * @param clazzOrName The class or name to reset
+ * @deprecated Use removeMock() instead. This will be removed in a future version.
+ * WARNING: This removes the mock, it does NOT clear mock call history.
+ * @param clazzOrName The class or name to restore
  */
 export declare function resetMock<T>(clazzOrName: InjectionToken<T>): void
 
 /**
- * Clear all registered instances and mocks from the container.
+ * Reset singleton instances without removing registrations.
+ * Mock registrations are preserved by default.
+ * 
+ * Ideal for test isolation where you want fresh instances but keep mocks.
+ * 
+ * @param options.preserveMocks If true (default), keeps mock registrations
  */
-export declare function clearContainer(): void
+export declare function resetSingletons(options?: { preserveMocks?: boolean }): void
+
+/**
+ * Clear all registered instances and mocks from the container.
+ * @param options.preserveRegistrations If true, keeps all registrations but clears cached instances.
+ */
+export declare function clearContainer(options?: { preserveRegistrations?: boolean }): void
 
 /**
  * Get the default container instance.
@@ -213,6 +336,43 @@ export declare function setDebug(enabled: boolean): void
  * @returns true if registered, false otherwise
  */
 export declare function isRegistered<T>(clazzOrName: InjectionToken<T>): boolean
+
+/**
+ * Check if a class or name has a mock registered.
+ * @param clazzOrName The class or name to check
+ * @returns true if mocked, false otherwise
+ */
+export declare function isMocked<T>(clazzOrName: InjectionToken<T>): boolean
+
+/**
+ * Get the mock instance for a mocked class.
+ * Useful for configuring mock behavior dynamically in tests.
+ * 
+ * @param clazzOrName The original class or name that was mocked
+ * @param params Parameters to pass to the constructor
+ * @returns The mock instance
+ * @throws Error if the class is not mocked
+ * 
+ * @example
+ * ```ts
+ * const mock = getMockInstance(UserService)
+ * mock.getUser.mockReturnValue({ id: 1 })
+ * ```
+ */
+export declare function getMockInstance<T>(clazzOrName: InjectionToken<T>, ...params: any[]): T
+
+/**
+ * Unregister a class or name from the container.
+ * @param clazzOrName The class or name to unregister
+ * @returns true if the registration was removed, false if it wasn't registered
+ */
+export declare function unregister<T>(clazzOrName: InjectionToken<T>): boolean
+
+/**
+ * List all registrations in the container.
+ * Useful for debugging and introspection.
+ */
+export declare function listRegistrations(): RegistrationInfo[]
 
 /**
  * Validate that all provided injection tokens are registered.

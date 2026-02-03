@@ -28,10 +28,7 @@ function createLazyAccessor(cache, getValue, name) {
       return undefined
     },
     get() {
-      if (!cache.has(this)) {
-        cache.set(this, getValue())
-      }
-      return cache.get(this)
+      return cache.get(this) ?? (cache.set(this, getValue()), cache.get(this))
     },
     set() {
       throw new Error(`Cannot assign value to injected accessor "${name}"`)
@@ -52,7 +49,7 @@ function createLazyAccessor(cache, getValue, name) {
  * @throws {Error} If the target is not a class constructor
  */
 export function Singleton(name) {
-  return function (clazz, context) {
+  return (clazz, context) => {
     if (context.kind !== 'class') {
       throw new Error('Invalid injection target')
     }
@@ -76,7 +73,7 @@ export function Singleton(name) {
  * @throws {Error} If the target is not a class constructor
  */
 export function Factory(name) {
-  return function (clazz, context) {
+  return (clazz, context) => {
     if (context.kind !== 'class') {
       throw new Error('Invalid injection target')
     }
@@ -108,14 +105,14 @@ export function Factory(name) {
  * @throws {Error} If the injected field is assigned a value
  */
 export function Inject(clazzOrName, ...params) {
-  return function (_, context) {
+  return (_, context) => {
     const getValue = () => {
       const instanceContext = defaultContainer.getContext(clazzOrName)
       return defaultContainer.getInstance(instanceContext, params)
     }
 
     if (context.kind === 'field') {
-      return function (initialValue) {
+      return (initialValue) => {
         if (initialValue) {
           throw new Error(`Cannot assign value to injected field "${context.name}"`)
         }
@@ -172,7 +169,7 @@ export function InjectLazy(clazzOrName, ...params) {
       // For private fields, we cannot use Object.defineProperty to create a lazy getter.
       // Instead, we eagerly create the value. For true lazy behavior, use accessor syntax.
       if (context.private) {
-        return function (initialValue) {
+        return (initialValue) => {
           if (initialValue) {
             throw new Error(`Cannot assign value to lazy-injected field "${context.name}"`)
           }
@@ -208,19 +205,70 @@ export function InjectLazy(clazzOrName, ...params) {
 }
 
 /**
- * Mark a class as a mock. This will replace the class with a mock instance when injected.
+ * Mark a class as a mock. This will replace the original class with the mock when injected.
+ * The mock registration persists until explicitly removed with removeMock() or removeAllMocks().
  *
  * @param {string|Function} mockedClazzOrName The singleton or factory class or name to be mocked
  * @param {boolean} [proxy=false] If true, the mock will proxy to the original class.
  *                                Any methods not defined in the mock will be called on the original class.
  * @returns {(function(Function, {kind: string}): void)}
- * @example @Mock(MySingleton) class MyMock {}
- * @example @Mock("myCustomName", true) class MyMock {}
+ * 
+ * @example Basic mocking
+ * ```js
+ * @Mock(MySingleton)
+ * class MockedSingleton {
+ *   doSomething() { return 'mocked result' }
+ * }
+ * ```
+ * 
+ * @example Proxy mocking (partial mock)
+ * ```js
+ * // Only override specific methods, others delegate to original
+ * @Mock(MySingleton, true)
+ * class PartialMock {
+ *   onlyThisMethod() { return 'mocked' }
+ *   // All other methods call the original implementation
+ * }
+ * ```
+ * 
+ * @example Testing pattern with hoisted mock functions
+ * ```js
+ * // Hoist mock functions for per-test configuration
+ * const mockMethod = vi.hoisted(() => vi.fn())
+ * 
+ * @Mock(MyService)
+ * class MockMyService {
+ *   doSomething = mockMethod
+ * }
+ * 
+ * beforeEach(() => {
+ *   // Clear call history - NOT removeMock() which removes the mock entirely
+ *   mockMethod.mockClear()
+ * })
+ * 
+ * it('should call the service', () => {
+ *   mockMethod.mockReturnValue('test value')
+ *   // ... your test
+ *   expect(mockMethod).toHaveBeenCalled()
+ * })
+ * ```
+ * 
+ * @example Cleanup in afterEach
+ * ```js
+ * afterEach(() => {
+ *   // Option 1: Remove all mocks and restore originals
+ *   removeAllMocks()
+ *   
+ *   // Option 2: Just clear singleton instances, keep mocks registered
+ *   resetSingletons()
+ * })
+ * ```
+ * 
  * @throws {Error} If the injection target is not a class
  * @throws {Error} If the injection source is not found
  */
 export function Mock(mockedClazzOrName, proxy = false) {
-  return function (clazz, context) {
+  return (clazz, context) => {
     if (context.kind !== 'class') {
       throw new Error('Invalid injection target')
     }
@@ -229,27 +277,118 @@ export function Mock(mockedClazzOrName, proxy = false) {
 }
 
 /**
- * Reset all mocks to their original classes.
+ * Remove all mocks and restore original classes.
+ * This completely removes all mocks - it does NOT clear mock call history.
+ * 
+ * If you want to clear call history on mock functions without removing the mock,
+ * call mockClear() on your mock functions instead.
+ * 
+ * @example
+ * ```js
+ * afterEach(() => {
+ *   removeAllMocks() // Restores original classes
+ * })
+ * ```
  */
-export function resetMocks() {
-  defaultContainer.resetAllMocks()
+export function removeAllMocks() {
+  defaultContainer.removeAllMocks()
 }
 
 /**
- * Reset a specific mock to its original class.
+ * Remove a specific mock and restore the original class.
+ * This completely removes the mock - it does NOT clear mock call history.
  *
- * @param {string|Function} clazzOrName The singleton or factory class or name to reset
+ * @param {string|Function} clazzOrName The singleton or factory class or name to restore
+ * 
+ * @example
+ * ```js
+ * removeMock(UserService) // Restores original UserService
+ * ```
+ */
+export function removeMock(clazzOrName) {
+  defaultContainer.removeMock(clazzOrName)
+}
+
+/**
+ * @deprecated Use removeAllMocks() instead. This will be removed in a future version.
+ * 
+ * WARNING: Despite the name, this does NOT reset mock call history like mockClear().
+ * It completely removes all mocks and restores the original classes.
+ */
+export function resetMocks() {
+  console.warn(
+    '[DI] resetMocks() is deprecated. Use removeAllMocks() instead. ' +
+    'Note: This removes mocks entirely, NOT clearing call history.'
+  )
+  defaultContainer.removeAllMocks()
+}
+
+/**
+ * @deprecated Use removeMock() instead. This will be removed in a future version.
+ * 
+ * WARNING: Despite the name, this does NOT reset mock call history like mockClear().
+ * It completely removes the mock and restores the original class.
+ *
+ * @param {string|Function} clazzOrName The singleton or factory class or name to restore
  */
 export function resetMock(clazzOrName) {
-  defaultContainer.resetMock(clazzOrName)
+  console.warn(
+    '[DI] resetMock() is deprecated. Use removeMock() instead. ' +
+    'Note: This removes the mock entirely, NOT clearing call history.'
+  )
+  defaultContainer.removeMock(clazzOrName)
+}
+
+/**
+ * Reset singleton instances without removing registrations.
+ * This clears cached singleton instances so they will be recreated on next resolve.
+ * Mock registrations are preserved by default.
+ * 
+ * This is ideal for test isolation where you want:
+ * - Fresh singleton instances per test
+ * - Mock registrations to remain intact
+ * 
+ * @param {Object} [options] Options for resetting
+ * @param {boolean} [options.preserveMocks=true] If true, keeps mock registrations.
+ *                                                If false, also removes mocks.
+ * 
+ * @example
+ * ```js
+ * beforeEach(() => {
+ *   // Each test gets fresh singleton instances
+ *   // but mocks remain registered
+ *   resetSingletons()
+ * })
+ * ```
+ */
+export function resetSingletons(options) {
+  defaultContainer.resetSingletons(options)
 }
 
 /**
  * Clear all registered instances and mocks from the container.
- * Useful for complete test isolation between test suites.
+ * 
+ * By default, this removes ALL registrations including @Singleton and @Factory classes.
+ * For just clearing singleton instances without removing any registrations,
+ * use resetSingletons() instead.
+ * 
+ * @param {Object} [options] Options for clearing
+ * @param {boolean} [options.preserveRegistrations=false] If true, keeps all registrations but clears cached instances.
+ * 
+ * @example
+ * ```js
+ * // Complete reset - removes everything
+ * clearContainer()
+ * 
+ * // Clear cached instances but keep registrations (including mocks)
+ * clearContainer({ preserveRegistrations: true })
+ * 
+ * // Just clear singleton instances (preferred for test isolation)
+ * resetSingletons()
+ * ```
  */
-export function clearContainer() {
-  defaultContainer.clear()
+export function clearContainer(options) {
+  defaultContainer.clear(options)
 }
 
 /**
@@ -338,6 +477,92 @@ export function validateRegistrations(...tokens) {
  */
 export function resolve(clazzOrName, ...params) {
   return defaultContainer.resolve(clazzOrName, ...params)
+}
+
+/**
+ * Get the mock instance for a mocked class.
+ * This is useful when you need to access or configure mock behavior dynamically in tests.
+ * 
+ * Unlike resolve(), this explicitly checks that the class is mocked and provides
+ * better error messages if it's not.
+ *
+ * @template T
+ * @param {string|Function} clazzOrName The original class or name that was mocked
+ * @param {...*} params Parameters to pass to the constructor
+ * @returns {T} The mock instance
+ * @throws {Error} If the class is not registered
+ * @throws {Error} If the class is not mocked
+ * 
+ * @example
+ * ```js
+ * @Mock(UserService)
+ * class MockUserService {
+ *   getUser = vi.fn()
+ * }
+ * 
+ * it('should get user', () => {
+ *   const mock = getMockInstance(UserService)
+ *   mock.getUser.mockReturnValue({ id: 1, name: 'Test' })
+ *   
+ *   // ... test code that uses UserService
+ *   
+ *   expect(mock.getUser).toHaveBeenCalledWith(1)
+ * })
+ * ```
+ */
+export function getMockInstance(clazzOrName, ...params) {
+  return defaultContainer.getMockInstance(clazzOrName, ...params)
+}
+
+/**
+ * Check if a class or name has a mock registered.
+ * Useful for conditional test logic or debugging.
+ *
+ * @param {string|Function} clazzOrName The class or name to check
+ * @returns {boolean} true if a mock is registered, false otherwise
+ * 
+ * @example
+ * ```js
+ * if (isMocked(UserService)) {
+ *   console.log('UserService is mocked')
+ * }
+ * ```
+ */
+export function isMocked(clazzOrName) {
+  return defaultContainer.isMocked(clazzOrName)
+}
+
+/**
+ * Unregister a class or name from the container.
+ * This removes the registration entirely, including any mock.
+ * 
+ * @param {string|Function} clazzOrName The class or name to unregister
+ * @returns {boolean} true if the registration was removed, false if it wasn't registered
+ * 
+ * @example
+ * ```js
+ * unregister(MyService) // Returns true if was registered
+ * ```
+ */
+export function unregister(clazzOrName) {
+  return defaultContainer.unregister(clazzOrName)
+}
+
+/**
+ * List all registrations in the container.
+ * Useful for debugging and introspection.
+ * 
+ * @returns {Array<{key: string|Function, name: string, type: 'singleton'|'factory', isMocked: boolean, hasInstance: boolean}>}
+ * 
+ * @example
+ * ```js
+ * listRegistrations().forEach(reg => {
+ *   console.log(`${reg.name}: ${reg.type}, mocked: ${reg.isMocked}`)
+ * })
+ * ```
+ */
+export function listRegistrations() {
+  return defaultContainer.list()
 }
 
 // Export Container class for advanced use cases (e.g., isolated containers)

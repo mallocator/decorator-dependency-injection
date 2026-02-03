@@ -44,6 +44,31 @@ describe('Container', () => {
         'A different class is already registered under this name'
       )
     })
+
+    it('should have a size getter', () => {
+      expect(container.size).toBe(0)
+      container.registerSingleton(class A {})
+      expect(container.size).toBe(1)
+      container.registerFactory(class B {})
+      expect(container.size).toBe(2)
+    })
+
+    it('should be iterable with Symbol.iterator', () => {
+      class ServiceA {}
+      class ServiceB {}
+      container.registerSingleton(ServiceA)
+      container.registerFactory(ServiceB, 'b')
+
+      const items = [...container]
+      expect(items).toHaveLength(2)
+      expect(items[0].type).toBe('singleton')
+      expect(items[1].name).toBe('b')
+    })
+
+    it('should have Symbol.toStringTag for debugging', () => {
+      expect(Object.prototype.toString.call(container)).toBe('[object Container]')
+      expect(container[Symbol.toStringTag]).toBe('Container')
+    })
   })
 
   describe('Instance Creation', () => {

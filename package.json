@@ -1,7 +1,7 @@
 {
   "name": "decorator-dependency-injection",
-  "version": "1.0.6",
-  "description": "A simple library for dependency injection using decorators",
+  "version": "1.0.7",
+  "description": "Lightweight dependency injection (DI) library using native TC39 Stage 3 decorators. Zero dependencies, built-in mocking, TypeScript support.",
   "author": "Ravi Gairola <mallox@pyxzl.net>",
   "license": "Apache-2.0",
   "repository": {
@@ -16,12 +16,25 @@
     "dependency-injection",
     "di",
     "decorators",
-    "mocking",
+    "tc39-decorators",
+    "stage-3-decorators",
+    "inject",
+    "injectable",
     "singleton",
-    "factory"
+    "factory",
+    "ioc",
+    "inversion-of-control",
+    "container",
+    "mocking",
+    "mock",
+    "testing",
+    "jest",
+    "vitest",
+    "typescript",
+    "service-locator"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "main": "index.js",
   "types": "index.d.ts",
