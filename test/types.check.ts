@@ -21,11 +21,18 @@ import {
   isRegistered,
   validateRegistrations,
   setDebug,
+  resolve,
   InstanceContext,
   RegistrationInfo,
   FieldOrAccessorDecorator,
   Constructor,
-  InjectionToken
+  InjectionToken,
+  hasContainer,
+  destroyContainer,
+  listContainers,
+  ScopeOptions,
+  ResetOptions,
+  ClearOptions
 } from '../index'
 
 // Test Container class types
@@ -139,4 +146,37 @@ const ctx: InstanceContext = {
   proxy: false
 }
 
-console.log('All type checks passed!')
+// Test ScopeOptions - named scopes
+
+// Test getContainer with name
+const namedContainer: Container = getContainer('my-scope')
+const defaultContainer2: Container = getContainer()
+
+// Test hasContainer
+const exists: boolean = hasContainer('my-scope')
+
+// Test destroyContainer
+const destroyed: boolean = destroyContainer('my-scope')
+
+// Test listContainers
+const containerNames: string[] = listContainers()
+
+// Test scope option on functions
+resolve(SomeClass, { scope: 'my-scope' })
+resolve(SomeClass, 'param1', { scope: 'my-scope' })
+isRegistered(SomeClass, { scope: 'my-scope' })
+isMocked(SomeClass, { scope: 'my-scope' })
+removeMock(SomeClass, { scope: 'my-scope' })
+removeAllMocks({ scope: 'my-scope' })
+resetSingletons({ scope: 'my-scope', preserveMocks: true })
+clearContainer({ scope: 'my-scope', preserveRegistrations: true })
+listRegistrations({ scope: 'my-scope' })
+setDebug(true, { scope: 'my-scope' })
+unregister(SomeClass, { scope: 'my-scope' })
+validateRegistrations(SomeClass, { scope: 'my-scope' })
+
+// Test ScopeOptions interface
+const scopeOpts: ScopeOptions = { scope: 'test' }
+const resetOpts: ResetOptions = { scope: 'test', preserveMocks: true }
+const clearOpts: ClearOptions = { scope: 'test', preserveRegistrations: false }
+

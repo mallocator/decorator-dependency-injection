@@ -42,6 +42,7 @@ No reflection. No metadata. No configuration files. Just decorators that work.
   - [Manual Resolution](#manual-resolution)
   - [Container Introspection](#container-introspection)
   - [Isolated Containers](#isolated-containers)
+  - [Scoped Containers](#scoped-containers)
   - [Server Middleware](#server-middleware-expresskoa-fastify)
 - [API Reference](#api-reference)
 - [TypeScript Support](#typescript-support)
@@ -431,6 +432,54 @@ const instance = container.resolve(MyService)
 
 See the [Framework Integration Guide](docs/FRAMEWORK_INTEGRATION.md#server-side-rendering) for SSR request isolation patterns.
 
+### Scoped Containers
+
+Scoped containers let you create isolated dependency contexts. Each scope gets its **own instances** while inheriting registrations from the default container. Use any value as a scope key - strings for named scopes, or objects for automatic cleanup.
+
+```javascript
+import { getContainer, resolve, destroyContainer } from 'decorator-dependency-injection'
+
+@Singleton()
+class UserService { /* ... */ }
+
+// Resolve in different scopes - each gets its own instance
+const defaultUser = resolve(UserService)
+const tenantUser = resolve(UserService, { scope: 'tenant:acme' })
+const requestUser = resolve(UserService, { scope: req })  // use request object as key
+
+// All three are different isolated instances
+defaultUser !== tenantUser !== requestUser
+```
+
+**Key types:**
+- **String keys** - stored in a Map, must be explicitly destroyed with `destroyContainer(name)`
+- **Object keys** - stored in a WeakMap, automatically garbage-collected when the key is GC'd
+
+```javascript
+// String key - explicit lifecycle
+getContainer('tenant:acme').registerSingleton(TenantConfig)
+destroyContainer('tenant:acme')  // cleanup when done
+listContainers()  // ['tenant:globex', ...]
+
+// Object key - automatic cleanup
+app.get('/api', (req, res) => {
+  const user = resolve(UserService, { scope: req })
+  // Container auto-cleaned when req is garbage collected
+})
+```
+
+**All functions support the `scope` option:**
+
+```javascript
+isRegistered(UserService, { scope: 'my-scope' })
+resetSingletons({ scope: req, preserveMocks: true })
+clearContainer({ scope: 'my-scope' })
+listRegistrations({ scope: req })
+removeMock(UserService, { scope: 'my-scope' })
+```
+
+See the [Framework Integration Guide](docs/FRAMEWORK_INTEGRATION.md#named-scopes) for multi-tenant and transaction patterns.
+
 ### Server Middleware (Express/Koa/Fastify)
 
 For Node.js servers, use the middleware module to get **automatic request-scoped containers**:
@@ -447,6 +496,28 @@ app.get('/user/:id', (req, res) => {
   const userService = resolve(UserService)
   res.json(userService.getUser(req.params.id))
 })
+```
+
+**The request object IS the container key.** This means any code with access to `req` can access the same container:
+
+```javascript
+import { getContainer } from 'decorator-dependency-injection'
+
+app.get('/data', (req, res) => {
+  // All of these access the SAME request-scoped container:
+  req.di.resolve(UserService)              // via req.di
+  resolve(UserService)                     // via AsyncLocalStorage (inside middleware)
+  resolve(UserService, { scope: req })     // explicit, works anywhere with req
+  getContainer(req).resolve(UserService)   // from main module
+  
+  // Pass req to helper functions to share the container
+  processData(req)
+})
+
+function processData(req) {
+  // Works outside the middleware chain!
+  const user = resolve(UserService, { scope: req })
+}
 ```
 
 **Mixing Global and Request Scopes:**
@@ -481,21 +552,26 @@ See the [Framework Integration Guide](docs/FRAMEWORK_INTEGRATION.md#nodejs-serve
 
 ### Functions
 
+All functions accept an optional `{ scope: string }` option as the last argument to target a named container instead of the default container.
+
 | Function | Description |
 |----------|-------------|
-| `resolve(target, ...params)` | Get an instance from the container ([example](#manual-resolution)) |
-| `removeMock(target)` | Remove a mock, restore original ([example](#mocking-dependencies)) |
-| `removeAllMocks()` | Remove all mocks ([example](#test-lifecycle)) |
+| `resolve(target, ...params, options?)` | Get an instance from the container ([example](#manual-resolution)) |
+| `removeMock(target, options?)` | Remove a mock, restore original ([example](#mocking-dependencies)) |
+| `removeAllMocks(options?)` | Remove all mocks ([example](#test-lifecycle)) |
 | `resetSingletons(options?)` | Clear cached singleton instances ([example](#test-lifecycle)) |
 | `clearContainer(options?)` | Clear all registrations ([example](#test-lifecycle)) |
-| `isRegistered(target)` | Check if target is registered ([example](#container-introspection)) |
-| `isMocked(target)` | Check if target is mocked ([example](#testing-best-practices)) |
-| `getMockInstance(target)` | Get the mock instance ([example](#testing-best-practices)) |
-| `validateRegistrations(...targets)` | Throw if any target is not registered ([example](#container-introspection)) |
-| `listRegistrations()` | List all registrations ([example](#container-introspection)) |
-| `getContainer()` | Get the default container ([example](#isolated-containers)) |
-| `setDebug(enabled)` | Enable/disable debug logging ([example](#container-introspection)) |
-| `unregister(target)` | Remove a registration |
+| `isRegistered(target, options?)` | Check if target is registered ([example](#container-introspection)) |
+| `isMocked(target, options?)` | Check if target is mocked ([example](#testing-best-practices)) |
+| `getMockInstance(target, ...params, options?)` | Get the mock instance ([example](#testing-best-practices)) |
+| `validateRegistrations(...targets, options?)` | Throw if any target is not registered ([example](#container-introspection)) |
+| `listRegistrations(options?)` | List all registrations ([example](#container-introspection)) |
+| `getContainer(name?)` | Get default or named container ([example](#named-scopes)) |
+| `hasContainer(name)` | Check if named container exists ([example](#named-scopes)) |
+| `destroyContainer(name)` | Remove a named container ([example](#named-scopes)) |
+| `listContainers()` | List all named container names ([example](#named-scopes)) |
+| `setDebug(enabled, options?)` | Enable/disable debug logging ([example](#container-introspection)) |
+| `unregister(target, options?)` | Remove a registration |
 
 ### Middleware Functions (`/middleware`)
 
@@ -576,3 +652,4 @@ Searching for: JavaScript dependency injection, TypeScript DI container, decorat
 - 1.0.6 - Added resolve() function for non-decorator code
 - 1.0.7 - Added more control for mocking in tests and improved compatibility
 - 1.1.0 - Added framework integration guide and server middleware
+- 1.1.1 - Added named scopes for multi-tenant and transaction isolation, parent container support

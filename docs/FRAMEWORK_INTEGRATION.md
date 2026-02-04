@@ -16,6 +16,10 @@ This guide shows how to use decorator-dependency-injection with frontend framewo
   - [Angular](#angular)
 - [Server-Side Rendering](#server-side-rendering)
 - [Node.js Server Middleware](#nodejs-server-middleware)
+- [Named Scopes](#named-scopes)
+  - [Multi-Tenant Applications](#multi-tenant-applications)
+  - [Transaction Scopes](#transaction-scopes)
+  - [Component Scopes](#component-scopes)
 - [Bundler Configuration](#bundler-configuration)
   - [Vite](#vite)
   - [Webpack](#webpack-create-react-app-etc)
@@ -563,6 +567,227 @@ it('uses the mocked service', () => {
   expect(result).toEqual({ id: 1, name: 'Mock User' })
 })
 ```
+
+---
+
+## Named Scopes
+
+Named scopes provide explicit container management without the implicit context of `AsyncLocalStorage`. This is useful when you need to control container lifecycle directly.
+
+### Multi-Tenant Applications
+
+For SaaS applications where each tenant needs isolated services:
+
+```javascript
+import express from 'express'
+import { 
+  getContainer, 
+  destroyContainer, 
+  resolve,
+  Singleton 
+} from 'decorator-dependency-injection'
+
+@Singleton()
+class TenantConfig {
+  constructor(tenantId, settings) {
+    this.tenantId = tenantId
+    this.settings = settings
+  }
+}
+
+@Singleton()
+class TenantDatabase {
+  constructor(connectionString) {
+    this.connectionString = connectionString
+  }
+}
+
+const app = express()
+
+// Middleware to set up tenant scope
+app.use((req, res, next) => {
+  const tenantId = req.headers['x-tenant-id']
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant ID required' })
+  }
+  
+  req.scope = `tenant:${tenantId}`
+  next()
+})
+
+// Tenant initialization endpoint
+app.post('/tenant/:id/init', async (req, res) => {
+  const { id } = req.params
+  const { settings, dbConnection } = req.body
+  
+  const container = getContainer(`tenant:${id}`)
+  container.registerSingleton(TenantConfig)
+  container.registerSingleton(TenantDatabase)
+  
+  // Initialize with tenant-specific values
+  resolve(TenantConfig, id, settings, { scope: `tenant:${id}` })
+  resolve(TenantDatabase, dbConnection, { scope: `tenant:${id}` })
+  
+  res.json({ status: 'initialized' })
+})
+
+// Use tenant services
+app.get('/users', (req, res) => {
+  const config = resolve(TenantConfig, { scope: req.scope })
+  const db = resolve(TenantDatabase, { scope: req.scope })
+  
+  // Each tenant has isolated instances
+  res.json({ tenantId: config.tenantId })
+})
+
+// Cleanup when tenant is deprovisioned
+app.delete('/tenant/:id', (req, res) => {
+  destroyContainer(`tenant:${req.params.id}`)
+  res.json({ status: 'destroyed' })
+})
+```
+
+**Auto-registration behavior:** When you call `resolve(Service, { scope: 'tenant:x' })` and `Service` isn't registered in that scope but exists in the default container, it's automatically registered in the tenant scope. This means each tenant gets their own isolated singleton instance.
+
+### Transaction Scopes
+
+For database transactions where all operations need the same connection:
+
+```javascript
+import { getContainer, destroyContainer, resolve } from 'decorator-dependency-injection'
+import { v4 as uuid } from 'uuid'
+
+@Singleton()
+class DbConnection {
+  constructor() {
+    this.id = uuid()
+    this.inTransaction = false
+  }
+
+  async beginTransaction() {
+    this.inTransaction = true
+    await this.query('BEGIN')
+  }
+
+  async commit() {
+    await this.query('COMMIT')
+    this.inTransaction = false
+  }
+
+  async rollback() {
+    await this.query('ROLLBACK')
+    this.inTransaction = false
+  }
+
+  async query(sql) { /* ... */ }
+}
+
+async function withTransaction(fn) {
+  const txId = `tx:${uuid()}`
+  const container = getContainer(txId)
+  container.registerSingleton(DbConnection)
+  
+  const conn = resolve(DbConnection, { scope: txId })
+  
+  try {
+    await conn.beginTransaction()
+    const result = await fn(txId)
+    await conn.commit()
+    return result
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    destroyContainer(txId)
+  }
+}
+
+// Usage
+app.post('/transfer', async (req, res) => {
+  const { from, to, amount } = req.body
+  
+  await withTransaction(async (txScope) => {
+    // All services in this transaction share the same DbConnection
+    const accountService = resolve(AccountService, { scope: txScope })
+    const auditService = resolve(AuditService, { scope: txScope })
+    
+    await accountService.debit(from, amount)
+    await accountService.credit(to, amount)
+    await auditService.log('transfer', { from, to, amount })
+  })
+  
+  res.json({ success: true })
+})
+```
+
+### Component Scopes
+
+For UI frameworks, named scopes can isolate component trees:
+
+```jsx
+// React example with named scopes for wizard steps
+import { getContainer, destroyContainer, resolve } from 'decorator-dependency-injection'
+import { createContext, useContext, useEffect, useMemo } from 'react'
+
+const ScopeContext = createContext(null)
+
+function ScopeProvider({ name, children }) {
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => destroyContainer(name)
+  }, [name])
+
+  return (
+    <ScopeContext.Provider value={name}>
+      {children}
+    </ScopeContext.Provider>
+  )
+}
+
+function useScopedService(ServiceClass) {
+  const scope = useContext(ScopeContext)
+  return useMemo(
+    () => resolve(ServiceClass, { scope }), 
+    [ServiceClass, scope]
+  )
+}
+
+// Usage: Each wizard instance has isolated state
+function Wizard({ wizardId }) {
+  return (
+    <ScopeProvider name={`wizard:${wizardId}`}>
+      <WizardStep1 />
+      <WizardStep2 />
+    </ScopeProvider>
+  )
+}
+
+function WizardStep1() {
+  const wizardState = useScopedService(WizardState)
+  // This instance is isolated to this wizard
+}
+```
+
+### Named Scopes vs Request Middleware
+
+| Feature | Named Scopes | Request Middleware |
+|---------|--------------|-------------------|
+| Context | Explicit (pass scope name) | Implicit (AsyncLocalStorage) |
+| Lifecycle | Manual (`destroyContainer`) | Automatic (per-request) |
+| Browser support | Yes | No (Node.js only) |
+| Use case | Multi-tenant, transactions, components | HTTP request isolation |
+| Complexity | Lower | Higher (hidden context) |
+
+**When to use named scopes:**
+- Browser/edge environments without `AsyncLocalStorage`
+- Long-lived scopes (tenant sessions, transactions)
+- When you need explicit control over container lifecycle
+- Component-level isolation in UI frameworks
+
+**When to use request middleware:**
+- Traditional Node.js servers (Express, Koa, Fastify)
+- When you want automatic per-request cleanup
+- SSR where request isolation is critical
 
 ---
 

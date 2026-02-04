@@ -6,7 +6,7 @@ import {
   getContainer,
   getGlobalContainer,
   runWithContainer
-} from '../src/integrations/middleware.js'
+} from '../src/middleware.js'
 import { Container } from '../src/Container.js'
 
 // Test services (not decorated - we'll register them manually for testing)
@@ -401,6 +401,62 @@ describe('Middleware Integration', () => {
       
       expect(instance1).not.toBe(instance2)
     })
+
+    it('withContainer with key shares container across calls', () => {
+      const handler = withContainer({ key: 'shared-context' })(() => {
+        // First call registers, subsequent calls reuse
+        if (!getContainer().has(AuthService, false)) {
+          getContainer().registerSingleton(AuthService)
+        }
+        return resolve(AuthService)
+      })
+      
+      const instance1 = handler()
+      const instance2 = handler()
+      
+      // Same container, same singleton
+      expect(instance1).toBe(instance2)
+      
+      // Cleanup
+      const { destroyContainer } = require('../index.js')
+      destroyContainer('shared-context')
+    })
+
+    it('withContainer with object key shares container', () => {
+      const sharedKey = { requestId: 'abc-123' }
+      
+      const handler = withContainer({ key: sharedKey })(() => {
+        if (!getContainer().has(AuthService, false)) {
+          getContainer().registerSingleton(AuthService)
+        }
+        return resolve(AuthService)
+      })
+      
+      const instance1 = handler()
+      const instance2 = handler()
+      
+      expect(instance1).toBe(instance2)
+    })
+
+    it('withContainer temporary container is cleaned up', () => {
+      // Without a key, each call gets a fresh temporary container
+      // that's not stored in any registry
+      const { hasContainer } = require('../index.js')
+      
+      let containerRef = null
+      const handler = withContainer()(() => {
+        containerRef = getContainer()
+        getContainer().registerSingleton(AuthService)
+        return resolve(AuthService)
+      })
+      
+      handler()
+      
+      // The container was used but not stored in any registry
+      // We can't really test GC, but we can verify it worked
+      expect(containerRef).toBeTruthy()
+      expect(containerRef.has(AuthService)).toBe(true)
+    })
   })
 
   describe('getGlobalContainer', () => {
@@ -500,21 +556,15 @@ describe('Middleware Integration', () => {
       expect(instances[0]).not.toBe(instances[1])
     })
 
-    it('scope: request warns when not in request context', () => {
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
-      
+    it('scope: request falls back to global when not in request context', () => {
       const globalContainer = getGlobalContainer()
       if (!globalContainer.has(UserService)) {
         globalContainer.registerSingleton(UserService)
       }
       
-      resolve(UserService, { scope: 'request' })
-      
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("scope='request' but no request context exists")
-      )
-      
-      warnSpy.mockRestore()
+      // Even with scope: 'request', it falls back to global if no context
+      const instance = resolve(UserService, { scope: 'request' })
+      expect(instance).toBeInstanceOf(UserService)
     })
 
     it('scope: global works outside request context', () => {

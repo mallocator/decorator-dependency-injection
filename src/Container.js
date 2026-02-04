@@ -17,7 +17,17 @@ export class Container {
   /** @type {Map<string|Function, InstanceContext>} */
   #instances = new Map()
 
+  /** @type {Container|null} */
+  #parent = null
+
   #debug = false
+
+  /**
+   * @param {Container} [parent] - Optional parent container for auto-registration fallback
+   */
+  constructor(parent = null) {
+    this.#parent = parent
+  }
 
   get [Symbol.toStringTag]() {
     return 'Container'
@@ -31,6 +41,11 @@ export class Container {
   /** @returns {number} */
   get size() {
     return this.#instances.size
+  }
+
+  /** @returns {Container|null} */
+  get parent() {
+    return this.#parent
   }
 
   /** @param {boolean} enabled */
@@ -73,11 +88,31 @@ export class Container {
   }
 
   /**
+   * Auto-register from parent container if available.
+   * @param {string|Function} clazzOrName
+   * @returns {boolean} true if auto-registered
+   */
+  #autoRegisterFromParent(clazzOrName) {
+    if (!this.#parent || this.#instances.has(clazzOrName) || !this.#parent.has(clazzOrName)) {
+      return false
+    }
+    
+    const parentContext = this.#parent.getContext(clazzOrName)
+    const name = typeof clazzOrName === 'string' ? clazzOrName : undefined
+    this.#register(parentContext.clazz, parentContext.type, name)
+    this.#log(`Auto-registered from parent: ${name || parentContext.clazz.name}`)
+    return true
+  }
+
+  /**
    * @param {string|Function} clazzOrName
    * @returns {InstanceContext}
-   * @throws {Error} If not found
+   * @throws {Error} If not found (and not in parent)
    */
   getContext(clazzOrName) {
+    // Try auto-register from parent first
+    this.#autoRegisterFromParent(clazzOrName)
+    
     const context = this.#instances.get(clazzOrName)
     if (context) {
       return context
@@ -89,16 +124,14 @@ export class Container {
       .map(k => typeof k === 'string' ? k : k.name)
       .join(', ')
     
-    // Detect if this looks like a mock class from a module mocking system
-    const looksLikeMock = /^Mock[A-Z]|mock/i.test(nameStr) || 
-                          nameStr.includes('Mock') ||
-                          nameStr.startsWith('vi_') ||
-                          nameStr.startsWith('jest_')
+    // Detect common mock class naming patterns from module mocking systems
+    const looksLikeMock = /^Mock[A-Z]/.test(nameStr) ||
+                          /Mock$/.test(nameStr) ||
+                          /^(vi|jest|sinon)_/.test(nameStr)
     
     const hint = looksLikeMock
-      ? `\n\nHint: The class name "${name}" suggests this may be a mock created by a module mocking system. ` +
-        `If you're using module mocking (e.g., vi.mock() or jest.mock()), consider using @Mock(OriginalService) instead, ` +
-        `which properly registers with the DI container.`
+      ? `\n\nThis looks like a mock from a module mocking system (vi.mock/jest.mock). ` +
+        `Use @Mock(OriginalClass) instead to properly register with the DI container.`
       : ''
     
     throw new Error(
@@ -106,9 +139,18 @@ export class Container {
     )
   }
 
-  /** @param {string|Function} clazzOrName */
-  has(clazzOrName) {
-    return this.#instances.has(clazzOrName)
+  /** 
+   * @param {string|Function} clazzOrName 
+   * @param {boolean} [checkParent=true] - Also check parent container (default: true for consistency with resolve)
+   */
+  has(clazzOrName, checkParent = true) {
+    if (this.#instances.has(clazzOrName)) {
+      return true
+    }
+    if (checkParent && this.#parent) {
+      return this.#parent.has(clazzOrName, true)
+    }
+    return false
   }
 
   /** @param {string|Function} clazzOrName */

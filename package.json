@@ -46,8 +46,8 @@
       "import": "./index.js"
     },
     "./middleware": {
-      "types": "./src/integrations/middleware.d.ts",
-      "import": "./src/integrations/middleware.js"
+      "types": "./src/middleware.d.ts",
+      "import": "./src/middleware.js"
     }
   },
   "scripts": {

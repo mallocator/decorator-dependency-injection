@@ -278,23 +278,30 @@ describe('Mock Lifecycle', () => {
   })
 
   describe('Improved error messages', () => {
-    it('should suggest @Mock for mock-like class names', () => {
+    it('should suggest @Mock for mock-like class names (MockXxx)', () => {
       class MockSomeService {}
 
-      expect(() => resolve(MockSomeService)).toThrow(/Hint:.*@Mock/)
+      expect(() => resolve(MockSomeService)).toThrow(/looks like a mock.*@Mock/)
     })
 
-    it('should suggest @Mock for class names containing Mock', () => {
+    it('should suggest @Mock for class names ending with Mock', () => {
       class UserServiceMock {}
 
-      expect(() => resolve(UserServiceMock)).toThrow(/Hint:.*@Mock/)
+      expect(() => resolve(UserServiceMock)).toThrow(/looks like a mock.*@Mock/)
     })
 
     it('should not add hint for regular class names', () => {
       class RegularService {}
 
       expect(() => resolve(RegularService)).toThrow(/Cannot find injection source/)
-      expect(() => resolve(RegularService)).not.toThrow(/Hint/)
+      expect(() => resolve(RegularService)).not.toThrow(/looks like a mock/)
+    })
+
+    it('should not add hint for class names that just contain "mock" substring', () => {
+      class HammockService {}
+
+      expect(() => resolve(HammockService)).toThrow(/Cannot find injection source/)
+      expect(() => resolve(HammockService)).not.toThrow(/looks like a mock/)
     })
   })
 
