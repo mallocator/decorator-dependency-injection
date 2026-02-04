@@ -82,7 +82,7 @@ describe('resolve', () => {
 
     it('should resolve a factory by name with parameters', () => {
       @Factory('loggerFactory')
-      class Logger {
+      class _Logger {
         constructor(module, level) {
           this.module = module
           this.level = level

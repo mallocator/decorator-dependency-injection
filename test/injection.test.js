@@ -1,4 +1,4 @@
-import {Factory, Inject, resetMocks, Singleton} from '../index.js'
+import {Factory, Inject, removeAllMocks, Singleton} from '../index.js'
 
 describe('Injection via fields', () => {
   @Singleton()
@@ -49,7 +49,7 @@ describe('Injection via fields', () => {
   afterEach(() => {
     TestFactory.calls = 0
     TestSingleton.calls = 0
-    resetMocks()
+    removeAllMocks()
   })
 
   it('should inject factory', () => {

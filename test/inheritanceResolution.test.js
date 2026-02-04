@@ -17,7 +17,7 @@ describe('Inheritance Resolution', () => {
 
     // Subclass IS registered
     @Singleton()
-    class PostgresDB extends Database {
+    class _PostgresDB extends Database {
       name = 'postgres'
     }
 

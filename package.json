@@ -1,6 +1,6 @@
 {
   "name": "decorator-dependency-injection",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "Lightweight dependency injection (DI) library using native TC39 Stage 3 decorators. Zero dependencies, built-in mocking, TypeScript support.",
   "author": "Ravi Gairola <mallox@pyxzl.net>",
   "license": "Apache-2.0",
@@ -39,10 +39,15 @@
   "main": "index.js",
   "types": "index.d.ts",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "import": "./index.js"
+    },
+    "./middleware": {
+      "types": "./src/integrations/middleware.d.ts",
+      "import": "./src/integrations/middleware.js"
     }
   },
   "scripts": {

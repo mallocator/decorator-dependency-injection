@@ -1,4 +1,4 @@
-import {Inject, InjectLazy, resetMocks, Singleton, Factory} from '../index.js'
+import {Inject, InjectLazy, removeAllMocks, Singleton, Factory} from '../index.js'
 
 /**
  * Static Field Injection Tests
@@ -7,7 +7,7 @@ import {Inject, InjectLazy, resetMocks, Singleton, Factory} from '../index.js'
  */
 describe('Static Field Injection', () => {
   afterEach(() => {
-    resetMocks()
+    removeAllMocks()
   })
 
   @Factory()

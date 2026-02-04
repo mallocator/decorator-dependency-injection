@@ -62,7 +62,10 @@ export default defineConfig([
         beforeEach: "readonly",
         afterEach: "readonly",
         jest: "readonly",
-        fail: "readonly"
+        fail: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        Promise: "readonly"
       }
     },
     rules: {

@@ -1,4 +1,4 @@
-import {Factory, Inject, InjectLazy, Mock, resetMock, resetMocks, Singleton} from '../index.js'
+import {Factory, Inject, InjectLazy, Mock, removeMock, removeAllMocks, Singleton} from '../index.js'
 
 describe('Mocking', () => {
   @Singleton()
@@ -17,7 +17,7 @@ describe('Mocking', () => {
   }
 
   afterEach(() => {
-    resetMocks()
+    removeAllMocks()
   })
 
   it('should inject a mock singleton', () => {
@@ -32,7 +32,7 @@ describe('Mocking', () => {
     expect(result.toBeMockedSingleton.op()).toBe('mocked1')
     expect(result.toBeMockedSingleton.op2).toBeUndefined()
 
-    resetMocks()
+    removeAllMocks()
     const result2 = new TestInjection()
     expect(result2.toBeMockedSingleton.op()).toBe('original')
     expect(result2.toBeMockedSingleton.op2()).toBe('original2')
@@ -56,7 +56,7 @@ describe('Mocking', () => {
     expect(result.op()).toBe('mocked2')
     expect(result.op2).toBeUndefined()
 
-    resetMocks()
+    removeAllMocks()
     const instance2 = new TestInjectionLazy()
     expect(instance2.lazyMockedSingleton.op()).toBe('original')
     expect(instance2.lazyMockedSingleton.op2()).toBe('original2')
@@ -84,7 +84,7 @@ describe('Mocking', () => {
     const result = new TestInjectionFactory()
     expect(result.toBeMockedFactory.op()).toBe('mocked')
 
-    resetMocks()
+    removeAllMocks()
     const result2 = new TestInjectionFactory()
     expect(result2.toBeMockedFactory.op()).toBe('original')
   })
@@ -106,7 +106,7 @@ describe('Mocking', () => {
     const result = instance.lazyMockedFactory
     expect(result.op()).toBe('mocked')
 
-    resetMocks()
+    removeAllMocks()
     const instance2 = new TestInjectionFactoryLazy()
     expect(instance2.lazyMockedFactory.op()).toBe('original')
   })
@@ -162,7 +162,7 @@ describe('Mocking', () => {
     expect(t.a.value()).toBe('mockA')
     expect(t.b.value()).toBe('mockB')
 
-    resetMock(A)
+    removeMock(A)
     const t2 = new Test()
     expect(t2.a.value()).toBe('A')
     expect(t2.b.value()).toBe('mockB')
@@ -177,7 +177,7 @@ describe('Mocking', () => {
     class Mock1 {
     }
 
-    resetMock(Original)
+    removeMock(Original)
 
     @Mock(Original)
     class Mock2 {
@@ -200,7 +200,7 @@ describe('Mocking', () => {
     class Mocked {
     }
 
-    resetMock(Orig)
+    removeMock(Orig)
 
     class Test {
       @Inject(Orig) dep
@@ -239,7 +239,7 @@ describe('Mocking', () => {
     class Mock1 {
     }
 
-    resetMock(Orig)
+    removeMock(Orig)
 
     @Mock(Orig)
     class Mock2 {
@@ -262,7 +262,7 @@ describe('Mocking', () => {
     class Mocked {
     }
 
-    resetMock(Orig)
+    removeMock(Orig)
 
     class Test {
       @InjectLazy(Orig) dep

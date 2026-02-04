@@ -195,7 +195,7 @@ describe('Container', () => {
 
       container.registerSingleton(Original)
       container.registerMock(Original, MockClass)
-      container.resetMock(Original)
+      container.removeMock(Original)
 
       const context = container.getContext(Original)
       const instance = container.getInstance(context, [])
@@ -203,7 +203,7 @@ describe('Container', () => {
       expect(instance.getValue()).toBe('original')
     })
 
-    it('should reset all mocks', () => {
+    it('should remove all mocks', () => {
       class Original1 {
         getValue() {
           return 'original1'
@@ -230,7 +230,7 @@ describe('Container', () => {
       container.registerMock(Original1, Mock1)
       container.registerMock(Original2, Mock2)
 
-      container.resetAllMocks()
+      container.removeAllMocks()
 
       const context1 = container.getContext(Original1)
       const context2 = container.getContext(Original2)
@@ -522,7 +522,7 @@ describe('Container', () => {
       expect(mockedInstance).toBeInstanceOf(MockClass)
 
       // Reset mock - should create new original instance
-      container.resetMock(Original)
+      container.removeMock(Original)
       const context3 = container.getContext(Original)
       const restoredInstance = container.getInstance(context3, [])
 
@@ -541,16 +541,16 @@ describe('Container', () => {
       expect(container.has('nonexistent')).toBe(false)
     })
 
-    it('should throw when resetting mock for unregistered class', () => {
+    it('should throw when removing mock for unregistered class', () => {
       class NotRegistered {}
 
-      expect(() => container.resetMock(NotRegistered)).toThrow(
+      expect(() => container.removeMock(NotRegistered)).toThrow(
         'Cannot reset mock for "NotRegistered": not registered'
       )
     })
 
-    it('should throw when resetting mock for unregistered name', () => {
-      expect(() => container.resetMock('nonexistent')).toThrow(
+    it('should throw when removing mock for unregistered name', () => {
+      expect(() => container.removeMock('nonexistent')).toThrow(
         'Cannot reset mock for "nonexistent": not registered'
       )
     })

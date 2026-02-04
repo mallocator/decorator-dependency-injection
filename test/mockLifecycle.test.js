@@ -1,6 +1,5 @@
 import {
   Factory,
-  Inject,
   Mock,
   Singleton,
   clearContainer,
@@ -582,7 +581,6 @@ describe('Mock Lifecycle', () => {
 
     it('should log when unregistering with debug enabled', () => {
       const container = getContainer()
-      const originalDebug = container.setDebug
 
       @Singleton()
       class DebugUnregisterService {}

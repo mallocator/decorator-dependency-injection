@@ -8,8 +8,6 @@ import {
   Inject,
   InjectLazy,
   Mock,
-  resetMocks,
-  resetMock,
   removeAllMocks,
   removeMock,
   resetSingletons,
@@ -73,12 +71,6 @@ const mockWithProxy: ClassDecorator = Mock(SomeClass, true)
 const mockWithName: ClassDecorator = Mock('someName', false)
 
 // Test utility function types
-// Deprecated functions (still available for backwards compatibility)
-resetMocks()
-resetMock(SomeClass)
-resetMock('someName')
-
-// New recommended functions
 removeAllMocks()
 removeMock(SomeClass)
 removeMock('someName')

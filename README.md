@@ -15,7 +15,11 @@ No reflection. No metadata. No configuration files. Just decorators that work.
 - Zero dependencies - tiny bundle size
 - Built-in mocking support for unit testing with Jest, Vitest, or Mocha
 - Full TypeScript support with type inference
-- Works with Node.js, Babel, and modern bundlers
+- Works with Node.js, Bun, React, Vue, Svelte, and more
+
+> **Using a frontend framework?** See the [Framework Integration Guide](docs/FRAMEWORK_INTEGRATION.md) for React, Vue, Svelte, SSR, and other environments.
+
+> **Building a Node.js server?** We have [Express/Koa/Fastify middleware](docs/FRAMEWORK_INTEGRATION.md#nodejs-server-middleware) for automatic request-scoped containers.
 
 ## Table of Contents
 
@@ -38,6 +42,7 @@ No reflection. No metadata. No configuration files. Just decorators that work.
   - [Manual Resolution](#manual-resolution)
   - [Container Introspection](#container-introspection)
   - [Isolated Containers](#isolated-containers)
+  - [Server Middleware](#server-middleware-expresskoa-fastify)
 - [API Reference](#api-reference)
 - [TypeScript Support](#typescript-support)
 
@@ -81,7 +86,7 @@ Add to your `.babelrc` or `babel.config.json`:
 
 ```json
 {
-  "plugins": ["@babel/plugin-proposal-decorators"]
+  "plugins": [["@babel/plugin-proposal-decorators", { "version": "2023-11" }]]
 }
 ```
 
@@ -424,6 +429,42 @@ container.registerSingleton(MyService)
 const instance = container.resolve(MyService)
 ```
 
+See the [Framework Integration Guide](docs/FRAMEWORK_INTEGRATION.md#server-side-rendering) for SSR request isolation patterns.
+
+### Server Middleware (Express/Koa/Fastify)
+
+For Node.js servers, use the middleware module to get **automatic request-scoped containers**:
+
+```javascript
+import express from 'express'
+import { containerMiddleware, resolve } from 'decorator-dependency-injection/middleware'
+
+const app = express()
+app.use(containerMiddleware())
+
+app.get('/user/:id', (req, res) => {
+  // Each request gets its own isolated container
+  const userService = resolve(UserService)
+  res.json(userService.getUser(req.params.id))
+})
+```
+
+**Mixing Global and Request Scopes:**
+
+```javascript
+app.get('/data', (req, res) => {
+  // Use global singleton (e.g., database pool, config)
+  const db = resolve(DatabasePool, { scope: 'global' })
+  
+  // Use request-scoped service (default)
+  const userService = resolve(UserService)
+  
+  res.json(userService.getData(db))
+})
+```
+
+See the [Framework Integration Guide](docs/FRAMEWORK_INTEGRATION.md#nodejs-server-middleware) for Koa, Fastify, and advanced patterns.
+
 ---
 
 ## API Reference
@@ -432,29 +473,55 @@ const instance = container.resolve(MyService)
 
 | Decorator | Description |
 |-----------|-------------|
-| `@Singleton(name?)` | Register a class as a singleton |
-| `@Factory(name?)` | Register a class as a factory |
-| `@Inject(target, ...params)` | Inject a dependency into a field |
-| `@InjectLazy(target, ...params)` | Inject lazily (on first access) |
-| `@Mock(target, proxy?)` | Replace a dependency with a mock |
+| `@Singleton(name?)` | Register a class as a singleton ([example](#singleton)) |
+| `@Factory(name?)` | Register a class as a factory ([example](#factory)) |
+| `@Inject(target, ...params)` | Inject a dependency into a field ([example](#singleton)) |
+| `@InjectLazy(target, ...params)` | Inject lazily (on first access) ([example](#lazy-injection)) |
+| `@Mock(target, proxy?)` | Replace a dependency with a mock ([example](#mocking-dependencies)) |
 
 ### Functions
 
 | Function | Description |
 |----------|-------------|
-| `resolve(target, ...params)` | Get an instance from the container |
-| `removeMock(target)` | Remove a mock, restore original |
-| `removeAllMocks()` | Remove all mocks |
-| `resetSingletons(options?)` | Clear cached singleton instances |
-| `clearContainer(options?)` | Clear all registrations |
-| `isRegistered(target)` | Check if target is registered |
-| `isMocked(target)` | Check if target is mocked |
-| `getMockInstance(target)` | Get the mock instance |
-| `validateRegistrations(...targets)` | Throw if any target is not registered |
-| `listRegistrations()` | List all registrations |
-| `getContainer()` | Get the default container |
-| `setDebug(enabled)` | Enable/disable debug logging |
+| `resolve(target, ...params)` | Get an instance from the container ([example](#manual-resolution)) |
+| `removeMock(target)` | Remove a mock, restore original ([example](#mocking-dependencies)) |
+| `removeAllMocks()` | Remove all mocks ([example](#test-lifecycle)) |
+| `resetSingletons(options?)` | Clear cached singleton instances ([example](#test-lifecycle)) |
+| `clearContainer(options?)` | Clear all registrations ([example](#test-lifecycle)) |
+| `isRegistered(target)` | Check if target is registered ([example](#container-introspection)) |
+| `isMocked(target)` | Check if target is mocked ([example](#testing-best-practices)) |
+| `getMockInstance(target)` | Get the mock instance ([example](#testing-best-practices)) |
+| `validateRegistrations(...targets)` | Throw if any target is not registered ([example](#container-introspection)) |
+| `listRegistrations()` | List all registrations ([example](#container-introspection)) |
+| `getContainer()` | Get the default container ([example](#isolated-containers)) |
+| `setDebug(enabled)` | Enable/disable debug logging ([example](#container-introspection)) |
 | `unregister(target)` | Remove a registration |
+
+### Middleware Functions (`/middleware`)
+
+| Function | Description |
+|----------|-------------|
+| `containerMiddleware(options?)` | Express/Fastify middleware ([example](#server-middleware-expresskoafastify)) |
+| `koaContainerMiddleware(options?)` | Koa middleware ([example](docs/FRAMEWORK_INTEGRATION.md#koa)) |
+| `resolve(target, options?)` | Get instance from request or global container ([example](#server-middleware-expresskoafastify)) |
+| `getContainer()` | Get current request container (or global if outside request) |
+| `getGlobalContainer()` | Get the global container |
+| `runWithContainer(container, fn, options?)` | Run function with specific container ([example](docs/FRAMEWORK_INTEGRATION.md#testing-with-runwithcontainer)) |
+| `withContainer(options?)` | Wrap handler with container context ([example](docs/FRAMEWORK_INTEGRATION.md#hono--fastify-handler-wrapper)) |
+
+**Middleware Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `scope` | `'request' \| 'global'` | Container scope (default: `'request'`) |
+| `debug` | `boolean` | Enable debug logging |
+
+**Resolve Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `scope` | `'request' \| 'global'` | Which container to resolve from (default: `'request'`) |
+| `params` | `any[]` | Constructor parameters to pass when creating instance |
 
 ---
 
@@ -508,3 +575,4 @@ Searching for: JavaScript dependency injection, TypeScript DI container, decorat
 - 1.0.5 - Added private field and accessor support for @Inject and @InjectLazy, debug mode, validation helpers
 - 1.0.6 - Added resolve() function for non-decorator code
 - 1.0.7 - Added more control for mocking in tests and improved compatibility
+- 1.1.0 - Added framework integration guide and server middleware

@@ -1,4 +1,4 @@
-import {Factory, InjectLazy, resetMocks, Singleton} from '../index.js'
+import {Factory, InjectLazy, removeAllMocks, Singleton} from '../index.js'
 
 describe('Lazy Injection via fields', () => {
   @Singleton()
@@ -42,7 +42,7 @@ describe('Lazy Injection via fields', () => {
   afterEach(() => {
     TestLazyFactory.calls = 0
     TestLazySingleton.calls = 0
-    resetMocks()
+    removeAllMocks()
   })
 
   it('should throw when attempting to assign to lazy-injected field', () => {
