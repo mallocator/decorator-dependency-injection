@@ -194,7 +194,7 @@ export function withContainer(options = {}) {
     }
 
     // If key provided, use the registry (container persists based on key type)
-    if (key != null) {
+    if (key !== null && key !== undefined) {
       const container = getContainerByKey(key)
       if (debug) container.setDebug(true)
       return requestContext.run({ key, scope: 'request' }, () => handler(...args))

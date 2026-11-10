@@ -8,6 +8,7 @@ import {
   runWithContainer
 } from '../src/middleware.js'
 import { Container } from '../src/Container.js'
+import { destroyContainer } from '../index.js'
 
 // Test services (not decorated - we'll register them manually for testing)
 class UserService {
@@ -418,7 +419,6 @@ describe('Middleware Integration', () => {
       expect(instance1).toBe(instance2)
       
       // Cleanup
-      const { destroyContainer } = require('../index.js')
       destroyContainer('shared-context')
     })
 
@@ -441,8 +441,6 @@ describe('Middleware Integration', () => {
     it('withContainer temporary container is cleaned up', () => {
       // Without a key, each call gets a fresh temporary container
       // that's not stored in any registry
-      const { hasContainer } = require('../index.js')
-      
       let containerRef = null
       const handler = withContainer()(() => {
         containerRef = getContainer()

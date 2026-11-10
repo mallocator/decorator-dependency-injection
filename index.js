@@ -24,7 +24,7 @@ const getMapForKey = (key) => typeof key === 'object' ? objectContainers : named
  * @returns {Container}
  */
 export function getContainer(key) {
-  if (key == null) {
+  if (key === null || key === undefined) {
     return defaultContainer
   }
   
@@ -49,7 +49,7 @@ export function getContainer(key) {
  * @returns {boolean}
  */
 export function hasContainer(key) {
-  if (key == null) return true // default container always exists
+  if (key === null || key === undefined) return true // default container always exists
   return getMapForKey(key).has(key)
 }
 
@@ -61,7 +61,7 @@ export function hasContainer(key) {
  * @returns {boolean} true if the container existed and was destroyed
  */
 export function destroyContainer(key) {
-  if (key == null) return false // cannot destroy default container
+  if (key === null || key === undefined) return false // cannot destroy default container
   
   const map = getMapForKey(key)
   const container = map.get(key)
