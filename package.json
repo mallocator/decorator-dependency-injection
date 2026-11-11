@@ -54,7 +54,7 @@
     "start": "babel-node index.js",
     "test": "jest --no-watchman",
     "test:coverage": "jest --no-watchman --coverage",
-    "typecheck": "tsc test/types.check.ts --noEmit --esModuleInterop --skipLibCheck",
+    "typecheck": "tsc index.d.ts src/middleware.d.ts test/types.check.ts --noEmit --esModuleInterop",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

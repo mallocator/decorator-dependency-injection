@@ -1,4 +1,4 @@
-import { Container, InjectionToken, ContainerKey } from '../../index'
+import { Container, InjectionToken, ContainerKey } from '../index'
 
 export type ContainerScope = 'request' | 'global'
 
@@ -73,5 +73,4 @@ export function koaContainerMiddleware(
  */
 export function withContainer<T extends (...args: any[]) => any>(
   options?: WithContainerOptions
-): (handler: T) => T
 ): (handler: T) => T

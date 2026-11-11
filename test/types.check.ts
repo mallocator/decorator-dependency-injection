@@ -1,5 +1,5 @@
 // Type verification file - this file is used to verify TypeScript definitions
-// Run with: npx tsc --noEmit test/types.check.ts
+// Run with: npm run typecheck
 
 import {
   Container,
